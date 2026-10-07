@@ -1,0 +1,9 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/LogicControl.Core/LogicControl.Core.csproj" />
+    <Project Path="src/LogicControl.App/LogicControl.App.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/LogicControl.Tests/LogicControl.Tests.csproj" />
+  </Folder>
+</Solution>

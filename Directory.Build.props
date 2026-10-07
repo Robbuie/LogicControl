@@ -1,0 +1,28 @@
+<Project>
+
+  <!-- Shared settings for every project in the repo. Same shape as NetControl's, so the two
+       solutions build, analyse and version the same way. -->
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <LangVersion>latest</LangVersion>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <InvariantGlobalization>true</InvariantGlobalization>
+
+    <!-- The version, in one place: every project reads it, the About box and the update check
+         show it, tools/publish.ps1 stamps the commit onto it, and the release workflow refuses a
+         tag that disagrees with it. 0.x until the app has read real plant exports end to end and
+         its exports have been imported by Studio 5000 without complaint. -->
+    <VersionPrefix>0.2.0</VersionPrefix>
+    <Product>LogicControl</Product>
+    <Company>Robbuie</Company>
+    <Copyright>Copyright (c) 2026 Robbuie. All rights reserved.</Copyright>
+    <RepositoryUrl>https://github.com/Robbuie/LogicControl</RepositoryUrl>
+
+    <EnableNETAnalyzers>true</EnableNETAnalyzers>
+    <AnalysisLevel>latest</AnalysisLevel>
+    <EnforceCodeStyleInBuild>true</EnforceCodeStyleInBuild>
+  </PropertyGroup>
+
+</Project>

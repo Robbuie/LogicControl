@@ -1,0 +1,397 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<!--
+  A small hand-written line, built to exercise every reader path and every finding rule once.
+  Not exported from Studio 5000 - replace with (or add beside it) a real plant export as soon as
+  there is one. Deliberate faults are marked FINDING with the rule they trip.
+-->
+<RSLogix5000Content SchemaRevision="1.0" SoftwareRevision="33.00" TargetName="Line3_PLC" TargetType="Controller" ContainsContext="false" ExportDate="Tue Oct 06 18:00:00 2026" ExportOptions="NoRawData L5KData DecoratedData ForceProtectedEncoding AllProjDocTrans">
+<Controller Use="Target" Name="Line3_PLC" ProcessorType="1756-L83E" MajorRev="33" MinorRev="11" TimeSlice="20" ShareUnusedTimeSlice="1" ProjectCreationDate="Mon Jan 06 08:00:00 2025" LastModifiedDate="Tue Oct 06 17:55:00 2026" SFCExecutionControl="CurrentActive" SFCRestartPosition="MostRecent" SFCLastScan="DontScan" ProjectSN="16#0000_0000" MatchProjectToController="false" CanUseRPIFromProducer="false" InhibitAutomaticFirmwareUpdate="0" PassThroughConfiguration="EnabledWithAppend" DownloadProjectDocumentationAndExtendedProperties="true" DownloadProjectCustomProperties="true" ReportMinorOverflow="false">
+<Description>
+<![CDATA[Line 3 packaging controller]]>
+</Description>
+<RedundancyInfo Enabled="false" KeepTestEditsOnSwitchOver="false"/>
+<Security Code="0" ChangesToDetect="16#ffff_ffff_ffff_ffff"/>
+<DataTypes>
+<DataType Name="UDT_RobotStatus" Family="NoFamily" Class="User">
+<Description>
+<![CDATA[Status block read from the robot cell controller]]>
+</Description>
+<Members>
+<Member Name="ZZZZZZZZZZUDT_RobotS0" DataType="SINT" Dimension="0" Radix="Decimal" Hidden="true" ExternalAccess="Read/Write"/>
+<Member Name="Ready" DataType="BIT" Dimension="0" Radix="Decimal" Hidden="false" Target="ZZZZZZZZZZUDT_RobotS0" BitNumber="0" ExternalAccess="Read/Write"/>
+<Member Name="Fault" DataType="BIT" Dimension="0" Radix="Decimal" Hidden="false" Target="ZZZZZZZZZZUDT_RobotS0" BitNumber="1" ExternalAccess="Read/Write"/>
+<Member Name="CycleCount" DataType="DINT" Dimension="0" Radix="Decimal" Hidden="false" ExternalAccess="Read/Write">
+<Description>
+<![CDATA[Completed cycles since power-up]]>
+</Description>
+</Member>
+</Members>
+</DataType>
+</DataTypes>
+<Modules>
+<Module Name="Local" CatalogNumber="1756-L83E" Vendor="1" ProductType="14" ProductCode="166" Major="33" Minor="11" ParentModule="Local" ParentModPortId="1" Inhibited="false" MajorFault="true">
+<EKey State="Disabled"/>
+<Ports>
+<Port Id="1" Address="0" Type="ICP" Upstream="false">
+<Bus Size="10"/>
+</Port>
+<Port Id="2" Address="192.168.1.10" Type="Ethernet" Upstream="false">
+<Bus/>
+</Port>
+</Ports>
+</Module>
+<Module Name="Local_IB16" CatalogNumber="1756-IB16" Vendor="1" ProductType="7" ProductCode="10" Major="3" Minor="1" ParentModule="Local" ParentModPortId="1" Inhibited="false" MajorFault="true">
+<EKey State="CompatibleModule"/>
+<Ports>
+<Port Id="1" Address="1" Type="ICP" Upstream="true"/>
+</Ports>
+<Communications CommMethod="536870913">
+<Connections>
+<Connection Name="StandardInput" RPI="20000" Type="Input" EventID="0" ProgrammaticallySendEventTrigger="false" InputSize="12" Unicast="false"/>
+</Connections>
+</Communications>
+</Module>
+<Module Name="Local_OB16" CatalogNumber="1756-OB16E" Vendor="1" ProductType="7" ProductCode="27" Major="3" Minor="1" ParentModule="Local" ParentModPortId="1" Inhibited="false" MajorFault="true">
+<EKey State="CompatibleModule"/>
+<Ports>
+<Port Id="1" Address="2" Type="ICP" Upstream="true"/>
+</Ports>
+<Communications CommMethod="536870914">
+<Connections>
+<Connection Name="StandardOutput" RPI="20000" Type="Output" EventID="0" InputSize="4" OutputSize="4" Unicast="false"/>
+</Connections>
+</Communications>
+</Module>
+<Module Name="ENBT_2" CatalogNumber="1756-EN2T" Vendor="1" ProductType="12" ProductCode="166" Major="11" Minor="1" ParentModule="Local" ParentModPortId="1" Inhibited="false" MajorFault="false">
+<EKey State="CompatibleModule"/>
+<Ports>
+<Port Id="1" Address="3" Type="ICP" Upstream="true"/>
+<Port Id="2" Address="192.168.10.1" Type="Ethernet" Upstream="false">
+<Bus/>
+</Port>
+</Ports>
+</Module>
+<!-- FINDING LC-HW-003: keying disabled on a remote adapter -->
+<Module Name="Rack1_AENT" CatalogNumber="1734-AENTR" Vendor="1" ProductType="12" ProductCode="141" Major="6" Minor="1" ParentModule="ENBT_2" ParentModPortId="2" Inhibited="false" MajorFault="false">
+<Description>
+<![CDATA[Infeed POINT I/O rack]]>
+</Description>
+<EKey State="Disabled"/>
+<Ports>
+<Port Id="1" Address="0" Type="PointIO" Upstream="false">
+<Bus Size="4"/>
+</Port>
+<Port Id="2" Address="192.168.10.20" Type="Ethernet" Upstream="true"/>
+</Ports>
+<Communications CommMethod="536870915">
+<Connections>
+<Connection Name="RackOptimized" RPI="20000" Type="InputOutput" EventID="0" InputSize="8" OutputSize="4" Unicast="true"/>
+</Connections>
+</Communications>
+</Module>
+<Module Name="Rack1_IB8" CatalogNumber="1734-IB8" Vendor="1" ProductType="7" ProductCode="113" Major="3" Minor="1" ParentModule="Rack1_AENT" ParentModPortId="1" Inhibited="false" MajorFault="false">
+<EKey State="CompatibleModule"/>
+<Ports>
+<Port Id="1" Address="1" Type="PointIO" Upstream="true"/>
+</Ports>
+</Module>
+<!-- FINDING LC-HW-001 (with VFD_102) and LC-HW-004: a 1 ms RPI on a drive -->
+<Module Name="VFD_101" CatalogNumber="PowerFlex 525-EENET" Vendor="1" ProductType="143" ProductCode="2192" Major="7" Minor="1" ParentModule="ENBT_2" ParentModPortId="2" Inhibited="false" MajorFault="false">
+<Description>
+<![CDATA[Infeed conveyor drive]]>
+</Description>
+<EKey State="CompatibleModule"/>
+<Ports>
+<Port Id="2" Address="192.168.10.31" Type="Ethernet" Upstream="true"/>
+</Ports>
+<Communications CommMethod="536870914">
+<Connections>
+<Connection Name="Drive" RPI="1000" Type="InputOutput" EventID="0" InputCxnPoint="2" OutputCxnPoint="1" InputSize="24" OutputSize="12" Unicast="true"/>
+</Connections>
+</Communications>
+</Module>
+<Module Name="VFD_102" CatalogNumber="PowerFlex 525-EENET" Vendor="1" ProductType="143" ProductCode="2192" Major="7" Minor="1" ParentModule="ENBT_2" ParentModPortId="2" Inhibited="false" MajorFault="false">
+<Description>
+<![CDATA[Outfeed conveyor drive - copied from VFD_101, address never changed]]>
+</Description>
+<EKey State="CompatibleModule"/>
+<Ports>
+<Port Id="2" Address="192.168.10.31" Type="Ethernet" Upstream="true"/>
+</Ports>
+<Communications CommMethod="536870914">
+<Connections>
+<Connection Name="Drive" RPI="20000" Type="InputOutput" EventID="0" InputCxnPoint="2" OutputCxnPoint="1" InputSize="24" OutputSize="12" Unicast="true"/>
+</Connections>
+</Communications>
+</Module>
+<!-- FINDING LC-HW-005: a Generic Ethernet scale whose data no logic reads -->
+<Module Name="Scale_1" CatalogNumber="ETHERNET-MODULE" Vendor="0" ProductType="0" ProductCode="0" Major="1" Minor="1" ParentModule="ENBT_2" ParentModPortId="2" Inhibited="false" MajorFault="false">
+<Description>
+<![CDATA[Checkweigher]]>
+</Description>
+<EKey State="Disabled"/>
+<Ports>
+<Port Id="2" Address="192.168.10.50" Type="Ethernet" Upstream="true"/>
+</Ports>
+<Communications CommMethod="1073741825" ConfigCxnPoint="102" ConfigSize="0">
+<Connections>
+<Connection Name="StandardConnection" RPI="10000" Type="InputOutput" EventID="0" InputCxnPoint="101" OutputCxnPoint="100" InputSize="20" OutputSize="4" Unicast="true"/>
+</Connections>
+</Communications>
+</Module>
+<Module Name="Robot_PLC" CatalogNumber="1756-L83E" Vendor="1" ProductType="14" ProductCode="166" Major="33" Minor="11" ParentModule="ENBT_2" ParentModPortId="2" Inhibited="false" MajorFault="false">
+<Description>
+<![CDATA[Robot cell controller - produces Robot_Heartbeat, answers MSG reads]]>
+</Description>
+<EKey State="CompatibleModule"/>
+<Ports>
+<Port Id="1" Address="0" Type="ICP" Upstream="false">
+<Bus/>
+</Port>
+<Port Id="2" Address="192.168.10.5" Type="Ethernet" Upstream="true"/>
+</Ports>
+</Module>
+<!-- FINDING LC-HW-002: inhibited -->
+<Module Name="Valve_Bank" CatalogNumber="ETHERNET-MODULE" Vendor="0" ProductType="0" ProductCode="0" Major="1" Minor="1" ParentModule="ENBT_2" ParentModPortId="2" Inhibited="true" MajorFault="false">
+<EKey State="Disabled"/>
+<Ports>
+<Port Id="2" Address="192.168.10.60" Type="Ethernet" Upstream="true"/>
+</Ports>
+<Communications CommMethod="1073741825">
+<Connections>
+<Connection Name="StandardConnection" RPI="20000" Type="InputOutput" EventID="0" InputCxnPoint="101" OutputCxnPoint="100" InputSize="4" OutputSize="4" Unicast="true"/>
+</Connections>
+</Communications>
+</Module>
+</Modules>
+<AddOnInstructionDefinitions>
+<AddOnInstructionDefinition Name="Motor_Ctrl" Revision="1.2" Vendor="Plant Controls" ExecutePrescan="false" ExecutePostscan="false" ExecuteEnableInFalse="false" CreatedDate="2025-01-06T08:00:00.000Z" CreatedBy="controls" EditedDate="2026-03-01T08:00:00.000Z" EditedBy="controls" SoftwareRevision="v33.00">
+<Description>
+<![CDATA[Run a contactor from a command, with a seal-in]]>
+</Description>
+<Parameters>
+<Parameter Name="EnableIn" TagType="Base" DataType="BOOL" Usage="Input" Radix="Decimal" Required="false" Visible="false" ExternalAccess="Read Only"/>
+<Parameter Name="EnableOut" TagType="Base" DataType="BOOL" Usage="Output" Radix="Decimal" Required="false" Visible="false" ExternalAccess="Read Only"/>
+<Parameter Name="Out" TagType="Base" DataType="BOOL" Usage="Output" Radix="Decimal" Required="true" Visible="true" ExternalAccess="Read Only">
+<Description>
+<![CDATA[Contactor output]]>
+</Description>
+</Parameter>
+<Parameter Name="Run_Cmd" TagType="Base" DataType="BOOL" Usage="Input" Radix="Decimal" Required="true" Visible="true" ExternalAccess="Read/Write"/>
+</Parameters>
+<LocalTags>
+<LocalTag Name="Sealed" DataType="BOOL" Radix="Decimal" ExternalAccess="None"/>
+</LocalTags>
+<Routines>
+<Routine Name="Logic" Type="RLL">
+<RLLContent>
+<Rung Number="0" Type="N">
+<Text>
+<![CDATA[[XIC(Run_Cmd),XIC(Sealed)]OTE(Sealed)OTE(Out);]]>
+</Text>
+</Rung>
+</RLLContent>
+</Routine>
+</Routines>
+</AddOnInstructionDefinition>
+</AddOnInstructionDefinitions>
+<Tags>
+<Tag Name="Line_Running" TagType="Base" DataType="BOOL" Radix="Decimal" Constant="false" ExternalAccess="Read/Write">
+<Description>
+<![CDATA[Line is running]]>
+</Description>
+<Data Format="Decorated">
+<DataValue DataType="BOOL" Radix="Decimal" Value="0"/>
+</Data>
+</Tag>
+<Tag Name="E_Stop_OK" TagType="Alias" Radix="Decimal" AliasFor="Local:1:I.Data.15" ExternalAccess="Read/Write">
+<Description>
+<![CDATA[Safety relay healthy]]>
+</Description>
+</Tag>
+<Tag Name="RunTimer" TagType="Base" DataType="TIMER" Constant="false" ExternalAccess="Read/Write"/>
+<Tag Name="Speed_Ref" TagType="Base" DataType="REAL" Radix="Float" Constant="false" ExternalAccess="Read/Write"/>
+<Tag Name="Line_Speed_Pct" TagType="Base" DataType="REAL" Radix="Float" Constant="false" ExternalAccess="Read/Write"/>
+<!-- FINDING LC-LOG-001: written by two OTEs in Motors -->
+<Tag Name="Conveyor_Run" TagType="Base" DataType="BOOL" Radix="Decimal" Constant="false" ExternalAccess="Read/Write"/>
+<Tag Name="Manual_Mode" TagType="Base" DataType="BOOL" Radix="Decimal" Constant="false" ExternalAccess="Read/Write"/>
+<Tag Name="Poll_Bit" TagType="Base" DataType="BOOL" Radix="Decimal" Constant="false" ExternalAccess="Read/Write"/>
+<Tag Name="Robot_Data" TagType="Base" DataType="UDT_RobotStatus" Constant="false" ExternalAccess="Read/Write"/>
+<Tag Name="Robot_OK" TagType="Base" DataType="BOOL" Radix="Decimal" Constant="false" ExternalAccess="Read/Write"/>
+<Tag Name="VFD101_Status" TagType="Base" DataType="DINT" Radix="Decimal" Constant="false" ExternalAccess="Read/Write"/>
+<Tag Name="M101" TagType="Base" DataType="Motor_Ctrl" Constant="false" ExternalAccess="Read/Write"/>
+<!-- FINDING LC-LOG-002 -->
+<Tag Name="Unused_Count" TagType="Base" DataType="DINT" Radix="Decimal" Constant="false" ExternalAccess="Read/Write"/>
+<Tag Name="Robot_Read" TagType="Base" DataType="MESSAGE" ExternalAccess="Read/Write">
+<Data Format="Message">
+<MessageParameters MessageType="CIP Data Table Read" RequestedLength="1" ConnectedFlag="1" ConnectionPath="ENBT_2, 2, 192.168.10.5, 1, 0" CommTypeCode="0" ServiceCode="16#004c" ObjectType="16#0000" TargetObject="0" AttributeNumber="16#0000" LocalIndex="0" LocalElement="Robot_Data" RemoteIndex="0" RemoteElement="Robot_Status" CacheConnections="TRUE" LargePacketUsage="FALSE"/>
+</Data>
+</Tag>
+<!-- FINDING LC-MSG-001 (never fired) and LC-MSG-002 (path starts at a module that does not exist) -->
+<Tag Name="Scale_Msg" TagType="Base" DataType="MESSAGE" ExternalAccess="Read/Write">
+<Data Format="Message">
+<MessageParameters MessageType="CIP Generic" RequestedLength="0" ConnectedFlag="0" ConnectionPath="Old_ENBT, 2, 192.168.10.50" CommTypeCode="0" ServiceCode="16#000e" ObjectType="16#0004" TargetObject="101" AttributeNumber="16#0003" LocalIndex="0" LocalElement="Scale_Raw" CacheConnections="FALSE" LargePacketUsage="FALSE"/>
+</Data>
+</Tag>
+<Tag Name="Line_Status" TagType="Produced" DataType="DINT" Radix="Decimal" ExternalAccess="Read/Write">
+<ProduceInfo ProduceCount="2" PLCdataType="false" ProgrammaticallySendEventTrigger="false" UnicastPermitted="true" MinimumRPI="0.200" MaximumRPI="536870.900" DefaultRPI="20.000"/>
+</Tag>
+<Tag Name="Robot_Heartbeat" TagType="Consumed" DataType="DINT" Radix="Decimal" ExternalAccess="Read Only">
+<ConsumeInfo Producer="Robot_PLC" RemoteTag="Heartbeat" RemoteInstance="0" RPI="50" Unicast="true"/>
+</Tag>
+<!-- FINDING LC-COM-002: the producer is not in the I/O tree -->
+<Tag Name="Cell4_Data" TagType="Consumed" DataType="DINT" Radix="Decimal" ExternalAccess="Read Only">
+<ConsumeInfo Producer="Cell4_PLC" RemoteTag="Status" RemoteInstance="0" RPI="100" Unicast="true"/>
+</Tag>
+</Tags>
+<Programs>
+<Program Name="MainProgram" TestEdits="false" MainRoutineName="MainRoutine" Disabled="false" UseAsFolder="false">
+<Tags>
+<Tag Name="Step" TagType="Base" DataType="DINT" Radix="Decimal" Constant="false" ExternalAccess="Read/Write"/>
+<Tag Name="Seq_Done" TagType="Base" DataType="BOOL" Radix="Decimal" Constant="false" ExternalAccess="Read/Write"/>
+</Tags>
+<Routines>
+<Routine Name="MainRoutine" Type="RLL">
+<RLLContent>
+<Rung Number="0" Type="N">
+<Comment>
+<![CDATA[Call the subroutines]]>
+</Comment>
+<Text>
+<![CDATA[JSR(Motors,0)JSR(Comms,0)JSR(Calc,0);]]>
+</Text>
+</Rung>
+<Rung Number="1" Type="N">
+<Comment>
+<![CDATA[Line run with timer]]>
+</Comment>
+<Text>
+<![CDATA[XIC(Local:1:I.Data.0)XIO(Local:1:I.Data.1)XIC(E_Stop_OK)[OTE(Line_Running),XIC(Line_Running)TON(RunTimer,?,?)];]]>
+</Text>
+</Rung>
+<Rung Number="2" Type="N">
+<Text>
+<![CDATA[EQU(Step,10)OTE(Seq_Done);]]>
+</Text>
+</Rung>
+</RLLContent>
+</Routine>
+<Routine Name="Motors" Type="RLL">
+<RLLContent>
+<Rung Number="0" Type="N">
+<Text>
+<![CDATA[XIC(Line_Running)XIC(VFD_101:I.Ready)OTE(VFD_101:O.Start);]]>
+</Text>
+</Rung>
+<Rung Number="1" Type="N">
+<Text>
+<![CDATA[MOV(Speed_Ref,VFD_101:O.FreqCommand);]]>
+</Text>
+</Rung>
+<Rung Number="2" Type="N">
+<Text>
+<![CDATA[XIC(Line_Running)OTE(Conveyor_Run);]]>
+</Text>
+</Rung>
+<Rung Number="3" Type="N">
+<Comment>
+<![CDATA[Manual jog - added during commissioning]]>
+</Comment>
+<Text>
+<![CDATA[XIC(Manual_Mode)OTE(Conveyor_Run);]]>
+</Text>
+</Rung>
+<Rung Number="4" Type="N">
+<Text>
+<![CDATA[Motor_Ctrl(M101,Local:2:O.Data.0,Conveyor_Run);]]>
+</Text>
+</Rung>
+<Rung Number="5" Type="N">
+<Text>
+<![CDATA[XIC(Rack1_AENT:I.Slot[1].Data.0)OTE(VFD_102:O.Start)MOV(Speed_Ref,VFD_102:O.FreqCommand);]]>
+</Text>
+</Rung>
+<Rung Number="6" Type="N">
+<Text>
+<![CDATA[CPT(Step,(Step + 1) MOD 20);]]>
+</Text>
+</Rung>
+</RLLContent>
+</Routine>
+<Routine Name="Comms" Type="RLL">
+<RLLContent>
+<Rung Number="0" Type="N">
+<Comment>
+<![CDATA[Read the robot status block every poll]]>
+</Comment>
+<Text>
+<![CDATA[XIC(Poll_Bit)MSG(Robot_Read);]]>
+</Text>
+</Rung>
+<Rung Number="1" Type="N">
+<Text>
+<![CDATA[GSV(Module,VFD_101,EntryStatus,VFD101_Status);]]>
+</Text>
+</Rung>
+<Rung Number="2" Type="N">
+<Text>
+<![CDATA[XIC(Robot_Data.Ready)XIO(Robot_Data.Fault)NEQ(Robot_Heartbeat,0)OTE(Robot_OK);]]>
+</Text>
+</Rung>
+<Rung Number="3" Type="N">
+<Text>
+<![CDATA[MOV(Step,Line_Status);]]>
+</Text>
+</Rung>
+</RLLContent>
+</Routine>
+<Routine Name="Calc" Type="ST">
+<STContent>
+<Line Number="0">
+<![CDATA[// Scale the line speed into drive Hz]]>
+</Line>
+<Line Number="1">
+<![CDATA[Speed_Ref := Line_Speed_Pct * 0.6;]]>
+</Line>
+<Line Number="2">
+<![CDATA[IF Speed_Ref > 60.0 THEN Speed_Ref := 60.0; END_IF;]]>
+</Line>
+</STContent>
+</Routine>
+<!-- FINDING LC-LOG-007 (never called) and LC-LOG-008 (Mystery_Bit is not declared) -->
+<Routine Name="OldLogic" Type="RLL">
+<RLLContent>
+<Rung Number="0" Type="N">
+<Text>
+<![CDATA[XIC(Mystery_Bit)OTL(Manual_Mode);]]>
+</Text>
+</Rung>
+</RLLContent>
+</Routine>
+</Routines>
+</Program>
+<!-- FINDING LC-LOG-006: in no task -->
+<Program Name="Diagnostics" TestEdits="false" MainRoutineName="MainRoutine" Disabled="false" UseAsFolder="false">
+<Tags/>
+<Routines>
+<Routine Name="MainRoutine" Type="RLL">
+<RLLContent>
+<Rung Number="0" Type="N">
+<Text>
+<![CDATA[NOP();]]>
+</Text>
+</Rung>
+</RLLContent>
+</Routine>
+</Routines>
+</Program>
+</Programs>
+<Tasks>
+<Task Name="MainTask" Type="CONTINUOUS" Priority="10" Watchdog="500" DisableUpdateOutputs="false" InhibitTask="false">
+<ScheduledPrograms>
+<ScheduledProgram Name="MainProgram"/>
+</ScheduledPrograms>
+</Task>
+</Tasks>
+</Controller>
+</RSLogix5000Content>

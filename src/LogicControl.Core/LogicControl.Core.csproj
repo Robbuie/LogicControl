@@ -1,0 +1,17 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- The analysis engine: reading an L5X export into a model, and everything worked out from
+       that model - the hardware tree, the communications map, cross-references and findings.
+       This project MUST NOT reference any UI assembly, and has no third-party dependencies:
+       System.Xml.Linq reads L5X, and that is all it needs. -->
+
+  <PropertyGroup>
+    <RootNamespace>LogicControl.Core</RootNamespace>
+    <AssemblyName>LogicControl.Core</AssemblyName>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="LogicControl.Tests" />
+  </ItemGroup>
+
+</Project>

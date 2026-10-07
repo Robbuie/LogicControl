@@ -1,0 +1,13 @@
+<Project>
+
+  <!-- Imported AFTER the project body, so properties the .csproj sets are visible here.
+
+       NetControl turns TreatWarningsAsErrors on for shipping code. This repo was scaffolded on a
+       machine with no .NET SDK, so the first build has never been run: warnings stay warnings
+       until it builds clean once on Windows, and then this flips to true exactly as NetControl
+       has it. Tracked in PLAN.md, step 0. -->
+  <PropertyGroup Condition="'$(IsTestProject)' != 'true'">
+    <TreatWarningsAsErrors>false</TreatWarningsAsErrors>
+  </PropertyGroup>
+
+</Project>

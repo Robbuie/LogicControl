@@ -1,0 +1,44 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- The WPF front end. A thin shell over LogicControl.Core: it opens a file, hands it to the
+       engine, and shows what comes back. Same structure and appearance system as NetControl. -->
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net10.0-windows</TargetFramework>
+    <UseWPF>true</UseWPF>
+
+    <!-- WPF does not work under InvariantGlobalization - see NetControl.App.csproj for the
+         whole story (a process that exits with no window and no message). -->
+    <InvariantGlobalization>false</InvariantGlobalization>
+
+    <RootNamespace>LogicControl.App</RootNamespace>
+    <!-- The exe is LogicControl.exe: the installer, the release assets and the in-app updater
+         (UpdateCheck.IsPortableAsset) all look for that exact name. -->
+    <AssemblyName>LogicControl</AssemblyName>
+
+    <!-- The family mark in violet: two rails and a rung with a contact and a coil. Drawn by
+         tools/icon.py and committed, so a build never needs Python. -->
+    <ApplicationIcon>Assets\LogicControl.ico</ApplicationIcon>
+
+    <!-- Packaging (SelfContained, PublishSingleFile) is a publish concern and lives in
+         tools/publish.ps1, so an ordinary build and test run pins no RuntimeIdentifier.
+         IncludeNativeLibrariesForSelfExtract stays here because it is inert outside a single-file
+         publish, and without it WPF's native DLLs are left loose beside the exe - which is how
+         NetControl 0.9.0 shipped an exe that could not start. -->
+
+    <IncludeNativeLibrariesForSelfExtract>true</IncludeNativeLibrariesForSelfExtract>
+  </PropertyGroup>
+
+  <!-- No package references. The MVVM plumbing is two small classes in Composition/ - see
+       ObservableObject for why this app does without CommunityToolkit.Mvvm. -->
+
+  <ItemGroup>
+    <ProjectReference Include="..\LogicControl.Core\LogicControl.Core.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="LogicControl.Tests" />
+  </ItemGroup>
+
+</Project>

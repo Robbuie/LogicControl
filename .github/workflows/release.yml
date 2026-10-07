@@ -1,0 +1,143 @@
+name: release
+
+# Tag a version, get an installer. Same shape as NetControl, Redline PDF, File Manager and File Compare.
+#
+#   (bump VersionPrefix in Directory.Build.props, and add the version's entry to CHANGELOG.md)
+#   git tag v0.6.0 && git push origin v0.6.0
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: write # required to create the release
+
+jobs:
+  build:
+    runs-on: windows-latest
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # publish.ps1 stamps the short commit onto the version, so the checkout has to be a real
+          # commit rather than a detached blob with no history.
+          fetch-depth: 0
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "10.0.x"
+
+      - name: Resolve the version and check it matches the tag
+        id: ver
+        shell: pwsh
+        run: |
+          # Directory.Build.props is the single source of truth - every project reads VersionPrefix
+          # from it, the status bar shows it, and every project file gets an event row naming it.
+          [xml] $props = Get-Content Directory.Build.props
+          $v = ($props.Project.PropertyGroup.VersionPrefix | Where-Object { $_ }) | Select-Object -First 1
+
+          if (-not $v) {
+            Write-Host "::error::Directory.Build.props does not set VersionPrefix."
+            exit 1
+          }
+
+          "version=$v" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
+
+          if ($env:GITHUB_REF -like "refs/tags/*") {
+            $tag = $env:GITHUB_REF -replace '^refs/tags/v?', ''
+            if ($tag -ne $v) {
+              # A mismatch would ship an installer whose filename, status bar and update check all
+              # disagree about the version - and the version is what anybody reading a bug report
+              # or an exported file needs to match it to a build.
+              Write-Host "::error::Tag v$tag does not match VersionPrefix ($v). Bump Directory.Build.props and re-tag."
+              exit 1
+            }
+          }
+
+          Write-Host "Building version $v"
+
+      # Its own step, so a red run says whether the code or the packaging failed.
+      - name: Test
+        run: dotnet test LogicControl.slnx -c Release --nologo
+
+      - name: Install Inno Setup
+        shell: pwsh
+        run: |
+          if (-not (Test-Path "C:\Program Files (x86)\Inno Setup 6\ISCC.exe")) {
+            choco install innosetup --no-progress -y
+          }
+
+      # One script for the local build and for this one. It publishes the single self-contained exe,
+      # stamps the short commit as SourceRevisionId, writes the SHA256 and version.json beside it,
+      # and wraps the exe with Inno Setup.
+      - name: Publish the exe and build the installer
+        shell: pwsh
+        run: pwsh tools/publish.ps1 -Installer -SkipTests
+
+      - name: Check both artefacts exist
+        shell: pwsh
+        run: |
+          $v = "${{ steps.ver.outputs.version }}"
+          $exe = "artifacts/LogicControl-$v/LogicControl.exe"
+          $setup = "dist_installer/LogicControl-Setup-$v.exe"
+
+          foreach ($path in @($exe, $setup)) {
+            if (-not (Test-Path $path)) { Write-Error "Missing $path"; exit 1 }
+            $mb = (Get-Item $path).Length / 1MB
+            Write-Host ("{0}: {1:N0} MB" -f $path, $mb)
+          }
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: LogicControl-${{ steps.ver.outputs.version }}
+          path: |
+            artifacts/LogicControl-${{ steps.ver.outputs.version }}/*
+            dist_installer/*
+
+      # The release page says what changed, taken from the CHANGELOG.md entry that was written
+      # anyway rather than typed a second time. If the slice comes back empty - a heading renamed, a
+      # version not in the file - the release still goes out with a one-liner, because a release
+      # that fails to publish over its own notes is a worse outcome than a thin release page.
+      - name: Release notes
+        if: startsWith(github.ref, 'refs/tags/')
+        shell: pwsh
+        run: |
+          $v = "${{ steps.ver.outputs.version }}"
+          $text = Get-Content CHANGELOG.md -Raw -Encoding utf8
+          $pattern = '(?ms)^## \[?' + [regex]::Escape($v) + '\b[^\n]*\n(.*?)(?=^## |\z)'
+          $m = [regex]::Match($text, $pattern)
+          $notes = if ($m.Success) { $m.Groups[1].Value.Trim() } else { '' }
+          if (-not $notes) { $notes = "LogicControl $v - see CHANGELOG.md" }
+          Set-Content -Path notes.md -Value $notes -Encoding utf8
+          Get-Content notes.md
+
+      # Published by gh, in one call, with the asset list stated here - not by a release action.
+      # The lesson from Redline PDF: letting a publisher decide what to upload had two jobs race to
+      # create one release, the update metadata never arrived, and the run still exited green.
+      #
+      # Both ways of getting it go on the same release. The .sha256 files go up too, and they are
+      # load-bearing: the in-app updater refuses an asset with no checksum beside it, so a release
+      # without them is one no installed copy will ever update to. A copy that arrived by email or
+      # on a USB stick is the other case they exist for, and that is how most of these reach a
+      # plant laptop.
+      - name: Publish release
+        if: startsWith(github.ref, 'refs/tags/')
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          $v = "${{ steps.ver.outputs.version }}"
+          $tag = "${{ github.ref_name }}"
+          # A re-run of the same tag replaces the release rather than failing on it. The tag is left
+          # alone - it is what triggered this run.
+          gh release delete $tag --yes 2>$null
+          $global:LASTEXITCODE = 0
+          gh release create $tag `
+            --title "LogicControl $v" `
+            --notes-file notes.md `
+            "dist_installer/LogicControl-Setup-$v.exe" `
+            "dist_installer/LogicControl-Setup-$v.exe.sha256" `
+            "artifacts/LogicControl-$v/LogicControl.exe" `
+            "artifacts/LogicControl-$v/LogicControl.exe.sha256" `
+            "artifacts/LogicControl-$v/version.json"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }

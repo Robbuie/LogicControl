@@ -1,0 +1,34 @@
+Copyright (c) 2026 Robbuie. All rights reserved.
+
+This source code is published so that the tool it produces can be read, audited and downloaded.
+It is not open source. No licence is granted to copy, modify, distribute, sublicense, or create
+derivative works from it, in whole or in part, except as permitted below or by written permission
+from the copyright holder.
+
+Permitted without asking:
+
+  - Downloading and running the published builds.
+  - Reading this source code, and quoting short excerpts of it when reporting a problem or
+    suggesting a change to this project.
+  - Forking this repository on GitHub for the sole purpose of proposing a change back to it.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT
+NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
+NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM,
+DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+
+This tool writes Studio 5000 import files and project copies that end up running on industrial
+equipment. That warranty disclaimer is not boilerplate: everything LogicControl writes is meant to
+be imported, verified and reviewed in Studio 5000 by a qualified person before it goes near a
+controller, and LogicControl itself never connects to one.
+
+---
+
+LogicControl reads and writes the L5X format as Studio 5000 exports it. It is not affiliated with,
+endorsed by or derived from software of Rockwell Automation; Studio 5000 and Logix are trademarks of
+their owners.
+
+Third-party components are used under their own licences:
+
+  - xUnit (tests only)          - Apache-2.0

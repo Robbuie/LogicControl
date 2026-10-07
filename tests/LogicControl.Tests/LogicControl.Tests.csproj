@@ -1,0 +1,39 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <RootNamespace>LogicControl.Tests</RootNamespace>
+    <AssemblyName>LogicControl.Tests</AssemblyName>
+    <IsPackable>false</IsPackable>
+    <IsTestProject>true</IsTestProject>
+
+    <!-- Windows-specific because this project references LogicControl.App - for the updater's
+         tests, ported with it from NetControl, and the view models - and a net10.0 project cannot
+         reference a net10.0-windows one. The same move NetControl.Tests made. No test opens a
+         window; the view models are free of WPF types. -->
+    <TargetFramework>net10.0-windows</TargetFramework>
+    <UseWPF>true</UseWPF>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- UseWPF drops System.IO from the implicit usings; the tests read and write files throughout. -->
+    <Using Include="System.IO" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.11.1" />
+    <PackageReference Include="xunit" Version="2.9.2" />
+    <PackageReference Include="xunit.runner.visualstudio" Version="2.8.2" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\LogicControl.Core\LogicControl.Core.csproj" />
+    <ProjectReference Include="..\..\src\LogicControl.App\LogicControl.App.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Hand-written exports that exercise one feature each, plus a whole small line. Copied to
+         the output so tests open them by path, the way the app does. -->
+    <None Include="Fixtures\**\*.L5X" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
+</Project>

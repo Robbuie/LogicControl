@@ -1,0 +1,26 @@
+bin/
+obj/
+.vs/
+.vscode/
+*.user
+*.suo
+*.userprefs
+artifacts/
+dist_installer/
+TestResults/
+*.db
+*.db-shm
+*.db-wal
+*.log
+
+# Tag and I/O lists people paste from are site data. Commit samples deliberately as *.sample.csv.
+*.csv
+!*.sample.csv
+
+# Exports people test with are real plant data. Commit a fixture deliberately, under tests/.
+*.L5X
+*.l5x
+!tests/**/*.L5X
+
+# Working copies synced to and from Claude sessions. Never committed.
+.claude-scratch/
