@@ -70,7 +70,27 @@ public partial class App : Application
         // The assistant's key is DPAPI-encrypted for this Windows user; its model and whether the
         // panel was open are remembered between runs.
         AssistantPreferences preferences = AssistantPreferences.Load();
-        var viewModel = new MainViewModel(new DpapiKeyStore(), handler: null, model: preferences.Model);
+        var viewModel = new MainViewModel(
+            new DpapiKeyStore(),
+            handler: null,
+            model: preferences.Model,
+            backend: Enum.TryParse(preferences.Backend, out ViewModels.Assistant.AssistantBackend chosen) ? chosen : null,
+            claudeCode: new ViewModels.Assistant.ClaudeCodeEnvironment
+            {
+                DataFolder = Path.Combine(AppPaths.Data, "claude"),
+                SelfExecutable = BuildInfo.ExecutablePath,
+                ConfiguredPath = preferences.ClaudeCodePath,
+            });
+        viewModel.Assistant.ClaudeCodePathChanged += (_, _) =>
+        {
+            preferences.ClaudeCodePath = viewModel.Assistant.ClaudeCodeConfiguredPath;
+            preferences.Save();
+        };
+        viewModel.Assistant.BackendChanged += (_, _) =>
+        {
+            preferences.Backend = viewModel.Assistant.Backend.ToString();
+            preferences.Save();
+        };
         viewModel.Assistant.IsOpen = preferences.Open;
         viewModel.Assistant.ModelChanged += (_, _) =>
         {
@@ -135,6 +155,20 @@ public partial class App : Application
     private void RunMcpServer(string[] args)
     {
         ShutdownMode = ShutdownMode.OnExplicitShutdown;
+
+        // --attach <pipe>: started by the assistant panel's Claude Code. Every tool call goes to the
+        // window that started it, so Claude works on the project and drafts on screen.
+        int attach = Array.FindIndex(args, a => string.Equals(a, "--attach", StringComparison.OrdinalIgnoreCase));
+        if (attach >= 0 && attach + 1 < args.Length)
+        {
+            var bridge = new Core.Assistant.ToolBridgeClient(args[attach + 1]);
+            var attached = new Core.Assistant.McpServer(Core.Assistant.LogicTools.DefinitionsFor(canOpenProjects: false), bridge.Execute, BuildInfo.Version);
+            var attachedIn = new StreamReader(Console.OpenStandardInput(), new UTF8Encoding(false));
+            var attachedOut = new StreamWriter(Console.OpenStandardOutput(), new UTF8Encoding(false)) { AutoFlush = true };
+            Task.Run(() => attached.RunAsync(attachedIn, attachedOut))
+                .ContinueWith(_ => Dispatcher.InvokeAsync(Shutdown), TaskScheduler.Default);
+            return;
+        }
 
         int at = Array.FindIndex(args, a => string.Equals(a, "--drafts", StringComparison.OrdinalIgnoreCase));
         string drafts = at >= 0 && at + 1 < args.Length

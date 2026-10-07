@@ -312,6 +312,50 @@ public partial class MainWindow : Window
 
     private void OnGetApiKey(object sender, RoutedEventArgs e) => Shell.Open(this, "https://console.anthropic.com/settings/keys");
 
+    private void OnInstallClaudeCode(object sender, RoutedEventArgs e) => Shell.Open(this, "https://code.claude.com/docs/en/setup");
+
+    /// <summary>
+    /// Opens a console running <c>claude auth login</c>: Claude Code's own sign-in, in a browser,
+    /// with the Claude account whose plan the chat should use. The panel checks again afterwards.
+    /// </summary>
+    private void OnSignInClaudeCode(object sender, RoutedEventArgs e)
+    {
+        if (ViewModel?.Assistant is not { ClaudeCodeExecutable: { } exe })
+        {
+            return;
+        }
+
+        try
+        {
+            // cmd's own quoting: /k ""C:\path\claude.exe" auth login" - the outer pair is stripped.
+            var info = new System.Diagnostics.ProcessStartInfo("cmd.exe")
+            {
+                UseShellExecute = true,
+                Arguments = $"/k \"\"{exe}\" auth login\"",
+            };
+            using System.Diagnostics.Process? console = System.Diagnostics.Process.Start(info);
+        }
+        catch (Exception ex) when (ex is System.ComponentModel.Win32Exception or InvalidOperationException)
+        {
+            Fail("Could not start Claude Code's sign-in", ex);
+        }
+    }
+
+    private void OnLocateClaudeCode(object sender, RoutedEventArgs e)
+    {
+        var dialog = new OpenFileDialog
+        {
+            Title = "Where is claude.exe?",
+            Filter = "Claude Code (claude.exe; claude.cmd)|claude.exe;claude.cmd|All files (*.*)|*.*",
+            CheckFileExists = true,
+        };
+
+        if (dialog.ShowDialog(this) == true)
+        {
+            ViewModel?.Assistant.UseClaudeCodeAt(dialog.FileName);
+        }
+    }
+
     private void OnShowAssistantDrafts(object sender, RoutedEventArgs e) => ViewModel?.Assistant.ShowDrafts();
 
     private DevelopViewModel? Develop => ViewModel?.Develop;
@@ -556,7 +600,11 @@ public partial class MainWindow : Window
         if (Develop is { } d && !ConfirmDiscard(d))
         {
             e.Cancel = true;
+            return;
         }
+
+        // Claude Code and its pipe go with the window.
+        ViewModel?.Assistant.Shutdown();
     }
 
     private void Fail(string headline, Exception ex) =>

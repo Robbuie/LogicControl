@@ -23,15 +23,29 @@ public sealed class McpServer
 {
     public const string ProtocolVersion = "2025-06-18";
 
-    private readonly LogicTools _tools;
-    private readonly IToolHost _host;
+    private readonly IReadOnlyList<ToolDefinition> _definitions;
+    private readonly Func<string, JsonElement, ToolResult> _execute;
+    private readonly IToolHost? _host;
     private readonly string _version;
 
     public McpServer(IToolHost host, string version)
     {
         ArgumentNullException.ThrowIfNull(host);
         _host = host;
-        _tools = new LogicTools(host);
+        var tools = new LogicTools(host);
+        _definitions = tools.Definitions;
+        _execute = tools.Execute;
+        _version = version;
+    }
+
+    /// <summary>
+    /// A server whose tools run somewhere else - <c>--attach</c> mode, where every call goes to the
+    /// LogicControl window over <see cref="ToolBridgeClient"/>.
+    /// </summary>
+    public McpServer(IReadOnlyList<ToolDefinition> definitions, Func<string, JsonElement, ToolResult> execute, string version)
+    {
+        _definitions = definitions ?? throw new ArgumentNullException(nameof(definitions));
+        _execute = execute ?? throw new ArgumentNullException(nameof(execute));
         _version = version;
     }
 
@@ -116,7 +130,9 @@ public sealed class McpServer
             ["protocolVersion"] = version,
             ["capabilities"] = new JsonObject { ["tools"] = new JsonObject { ["listChanged"] = false } },
             ["serverInfo"] = new JsonObject { ["name"] = "logiccontrol", ["version"] = _version },
-            ["instructions"] = AssistantPrompt.System + (_host is FileToolHost f
+            ["instructions"] = _host is null
+                ? "LogicControl's tools, running against the project and drafts open in the LogicControl window."
+                : AssistantPrompt.System + (_host is FileToolHost f
                 ? $"\n\nIn this session drafts are saved to {f.DraftsPath}; tell the user to open that file in LogicControl (File > Open development set) to review and export them."
                 + (f.Analysis is null ? " No project is open yet: ask for the path of an L5X export and call open_project." : $" The open project is {f.Analysis.Project.SourcePath}.")
                 : string.Empty),
@@ -126,7 +142,7 @@ public sealed class McpServer
     private JsonObject ListTools()
     {
         var tools = new JsonArray();
-        foreach (ToolDefinition d in _tools.Definitions)
+        foreach (ToolDefinition d in _definitions)
         {
             tools.Add(new JsonObject
             {
@@ -144,7 +160,7 @@ public sealed class McpServer
     {
         string name = (string?)parameters?["name"] ?? throw new ArgumentException("tools/call needs a name.");
         JsonElement arguments = JsonSerializer.SerializeToElement(parameters?["arguments"] ?? new JsonObject());
-        ToolResult result = _tools.Execute(name, arguments);
+        ToolResult result = _execute(name, arguments);
 
         return new JsonObject
         {

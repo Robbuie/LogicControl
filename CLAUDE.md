@@ -96,16 +96,24 @@ installer/                    Inno Setup script; tools/publish.ps1 builds exe + 
 - **The assistant can only change drafts.** LogicTools has no tool that touches a controller,
   edits the opened project or writes any file other than the drafts (the --mcp host saves its own
   .lcdev after each change); draft tools write the DevelopmentSet and return the checker's verdict. Keep it that way - new tools that act outside the drafts need a person in the loop.
-- **One tool table, two front ends**: the panel (ConversationSession over the API) and
-  `LogicControl.exe --mcp` (McpServer). A tool added to LogicTools appears in both. Nothing may
-  write to stdout in --mcp mode except protocol messages.
+- **One tool table, three front ends**: the panel over the API (ConversationSession), the panel
+  over the user's Claude Code (ClaudeCodeSession), and `LogicControl.exe --mcp` (McpServer). A tool
+  added to LogicTools appears in all of them. Nothing may write to stdout in --mcp mode except
+  protocol messages.
+- **The Claude Code back end** (default with no API key): one `claude -p` per chat in stream-json
+  mode, built-in tools off (`--tools ""`), `--strict-mcp-config` with LogicControl as the only
+  server - `LogicControl.exe --mcp --attach <pipe>`, which forwards every call over a
+  current-user-only named pipe (ToolBridgeServer/Client) to the window, where it runs on the UI
+  thread against the live project and drafts. Stop kills the process; the next question resumes
+  the Claude Code session by id. ClaudeCodeLocator finds claude (~/.local/bin, PATH, npm, the VS
+  Code extension's copy); `claude auth status` says whether it is signed in.
 - The API key is DPAPI-encrypted (Composition/DpapiKeyStore, P/Invoke - no package). Never log it.
 - The installer `AppId` GUID and `InstallLocation.UninstallKey` are the same GUID. Never change it.
 
 ## Status
 
 0.4.0. The engine, view models, updater and assistant are tested on Linux (.NET 10.0.112) with an
-offline xunit stand-in: 236 tests pass. The whole app, XAML included, compiles on Linux with 0
+offline xunit stand-in: 250 tests pass. The whole app, XAML included, compiles on Linux with 0
 warnings when pointed at the WindowsDesktop assemblies copied from a Windows machine (no NuGet:
 `DisableImplicitFrameworkReferences` plus `<Reference>`s to the NETCore ref pack and the WPF dlls,
 `EnableWindowsTargeting`, `UseAppHost=false`) - bindings and resources are only checked at run

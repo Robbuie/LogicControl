@@ -725,6 +725,9 @@ public sealed class LogicTools(IToolHost host)
 
     // ------------------------------------------------------------------ the table
 
+    /// <summary>The tool table as a host that can (or cannot) open projects would offer it.</summary>
+    public static IReadOnlyList<ToolDefinition> DefinitionsFor(bool canOpenProjects) => BuildDefinitions(canOpenProjects);
+
     private static List<ToolDefinition> BuildDefinitions(bool canOpen)
     {
         var tools = new List<ToolDefinition>();

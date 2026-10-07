@@ -14,7 +14,7 @@
          show it, tools/publish.ps1 stamps the commit onto it, and the release workflow refuses a
          tag that disagrees with it. 0.x until the app has read real plant exports end to end and
          its exports have been imported by Studio 5000 without complaint. -->
-    <VersionPrefix>0.4.0</VersionPrefix>
+    <VersionPrefix>0.4.1</VersionPrefix>
     <Product>LogicControl</Product>
     <Company>Robbuie</Company>
     <Copyright>Copyright (c) 2026 Robbuie. All rights reserved.</Copyright>

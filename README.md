@@ -46,8 +46,10 @@ back as L5X for Studio 5000 to import.
   Program/Routine rung numbers.
 - Ask for logic - "add a jam timer to every conveyor" - and Claude drafts the tags, UDTs, rungs or
   AOIs into the Develop tab, checked like anything typed by hand, for you to review and export.
-- Needs an Anthropic API key (console.anthropic.com), billed per use and separate from a Claude
-  subscription. Project details Claude reads are sent to Anthropic to answer.
+- Runs on **your Claude plan**: the panel drives your own [Claude Code](https://code.claude.com/docs/en/setup)
+  in the background (install it once and sign in; the panel walks you through it), so no API key
+  or credits are needed. Or pick **API key** in the panel to use the API directly, billed per use.
+  Project details Claude reads are sent to Anthropic to answer either way.
 
 **Or use Claude in VS Code** with your own Claude plan: LogicControl is also an MCP server.
 

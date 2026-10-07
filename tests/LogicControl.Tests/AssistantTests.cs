@@ -343,7 +343,7 @@ public class AssistantTests
     [Fact]
     public void AKeyThatIsNotAnAnthropicKeyIsRefused()
     {
-        var chat = new MainViewModel().Assistant;
+        var chat = new MainViewModel(backend: AssistantBackend.ApiKey).Assistant;
 
         Assert.True(chat.NeedsKey);
         Assert.NotNull(chat.SaveKey("hello"));

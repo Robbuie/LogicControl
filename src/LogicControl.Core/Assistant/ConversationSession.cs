@@ -21,7 +21,7 @@ namespace LogicControl.Core.Assistant;
 /// draft tools change the same development set the Develop tab is bound to. They are fast; the
 /// slow part is the network, which is awaited.</para>
 /// </summary>
-public sealed class ConversationSession(ClaudeClient client, LogicTools tools, AssistantOptions options)
+public sealed class ConversationSession(ClaudeClient client, LogicTools tools, AssistantOptions options) : IConversation
 {
     public const int MaxRoundsPerTurn = 24;
 
@@ -36,6 +36,8 @@ public sealed class ConversationSession(ClaudeClient client, LogicTools tools, A
     public Usage TotalUsage { get; private set; } = Usage.Zero;
 
     public int MessageCount => _messages.Count;
+
+    public string Model => Options.Model;
 
     public void Reset()
     {

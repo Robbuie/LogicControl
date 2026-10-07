@@ -130,6 +130,12 @@ public sealed class AssistantPreferences
 
     public bool Open { get; set; }
 
+    /// <summary>"ClaudeCode" or "ApiKey"; null until the user picks one.</summary>
+    public string? Backend { get; set; }
+
+    /// <summary>A claude.exe the user pointed at, when the search does not find theirs.</summary>
+    public string? ClaudeCodePath { get; set; }
+
     private static string FilePath => Path.Combine(AppPaths.Data, "assistant.json");
 
     public static AssistantPreferences Load()

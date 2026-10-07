@@ -25,6 +25,12 @@ namespace LogicControl.App.ViewModels.Assistant;
 /// <para>Everything happens on the thread that called <see cref="SendAsync"/>: the stream's events
 /// and the tool calls come back on it because every await keeps the context. In the app that is the
 /// UI thread, which is what lets a draft tool change the Develop tab's set directly.</para>
+///
+/// <para><b>Two back ends</b> (<see cref="AssistantBackend"/>). With Claude Code - the default when
+/// there is no API key - the panel runs the user's own <c>claude</c>, signed in with their Claude
+/// plan, and its tool calls come back into this window over a named pipe
+/// (<see cref="ToolBridgeServer"/>), posted to the UI thread so they touch the same drafts the
+/// editors do. With an API key it calls the Messages API directly. The chat looks the same.</para>
 /// </summary>
 public sealed class AssistantViewModel : ObservableObject, IToolHost, IAssistantSink
 {
@@ -33,8 +39,14 @@ public sealed class AssistantViewModel : ObservableObject, IToolHost, IAssistant
     private readonly Func<HttpMessageHandler?> _handler;
     private readonly LogicTools _tools;
 
-    private ConversationSession? _session;
+    private readonly ClaudeCodeEnvironment _claudeCode;
+    private IConversation? _session;
     private ClaudeClient? _client;
+    private ToolBridgeServer? _bridge;
+    private AssistantBackend _backend;
+    private ClaudeCodeStatus _claudeStatus = new(ClaudeCodeState.Unknown, null, null);
+    private bool _checking;
+    private bool _checked;
     private CancellationTokenSource? _running;
     private ChatMessageViewModel? _current;
     private string _input = string.Empty;
@@ -46,7 +58,10 @@ public sealed class AssistantViewModel : ObservableObject, IToolHost, IAssistant
     private bool _hasKey;
     private object? _lastDraft;
 
-    public AssistantViewModel(MainViewModel main, IApiKeyStore keys, Func<HttpMessageHandler?>? handler = null, string? model = null)
+    /// <param name="backend">Null picks: an API key if one is stored, otherwise Claude Code.</param>
+    public AssistantViewModel(
+        MainViewModel main, IApiKeyStore keys, Func<HttpMessageHandler?>? handler = null, string? model = null,
+        AssistantBackend? backend = null, ClaudeCodeEnvironment? claudeCode = null)
     {
         _main = main;
         _keys = keys;
@@ -54,6 +69,9 @@ public sealed class AssistantViewModel : ObservableObject, IToolHost, IAssistant
         _model = model is { Length: > 0 } ? model : AssistantOptions.DefaultModel;
         _tools = new LogicTools(this);
         _hasKey = _keys.Load() is { Length: > 0 };
+        _claudeCode = claudeCode ?? new ClaudeCodeEnvironment();
+        _backend = backend ?? (_hasKey ? AssistantBackend.ApiKey : AssistantBackend.ClaudeCode);
+        CheckClaudeCodeCommand = new RelayCommand(() => _ = CheckClaudeCodeAsync(), () => !_checking);
 
         SendCommand = new RelayCommand(() => _ = SendAsync(), () => CanSend);
         StopCommand = new RelayCommand(Stop, () => IsBusy);
@@ -78,7 +96,15 @@ public sealed class AssistantViewModel : ObservableObject, IToolHost, IAssistant
     public bool IsOpen
     {
         get => _isOpen;
-        set => SetProperty(ref _isOpen, value);
+        set
+        {
+            if (SetProperty(ref _isOpen, value) && value && UsesClaudeCode && !_checked)
+            {
+                // First time the panel opens: find Claude Code, so the panel can say what is missing.
+                _checked = true;
+                _ = CheckClaudeCodeAsync();
+            }
+        }
     }
 
     public string Input
@@ -95,11 +121,255 @@ public sealed class AssistantViewModel : ObservableObject, IToolHost, IAssistant
 
     public bool IsBusy => _running is not null;
 
-    public bool CanSend => !IsBusy && _hasKey && _input.Trim().Length > 0;
+    public bool CanSend => !IsBusy && IsReady && _input.Trim().Length > 0;
 
     public bool HasKey => _hasKey;
 
-    public bool NeedsKey => !_hasKey;
+    /// <summary>The API key card is shown: the API back end is chosen and there is no key.</summary>
+    public bool NeedsKey => _backend == AssistantBackend.ApiKey && !_hasKey;
+
+    /// <summary>
+    /// The chat can be used: a key for the API, or a Claude Code that is not known to be missing or
+    /// signed out (an unchecked one is let through - its first answer says what is wrong).
+    /// </summary>
+    public bool IsReady => _backend == AssistantBackend.ApiKey
+        ? _hasKey
+        : _claudeStatus.State is ClaudeCodeState.Ready or ClaudeCodeState.Unknown;
+
+    // ------------------------------------------------------------------ back end
+
+    public AssistantBackend Backend
+    {
+        get => _backend;
+        set
+        {
+            if (SetProperty(ref _backend, value))
+            {
+                // A different back end is a different conversation.
+                ResetSession();
+                BackendChanged?.Invoke(this, EventArgs.Empty);
+                RaiseReadiness();
+                if (value == AssistantBackend.ClaudeCode)
+                {
+                    _ = CheckClaudeCodeAsync();
+                }
+            }
+        }
+    }
+
+    public IReadOnlyList<AssistantBackend> Backends { get; } = [AssistantBackend.ClaudeCode, AssistantBackend.ApiKey];
+
+    /// <summary>The back end as the header's drop-down index: 0 Claude Code, 1 API key.</summary>
+    public int BackendIndex
+    {
+        get => _backend == AssistantBackend.ApiKey ? 1 : 0;
+        set => Backend = value == 1 ? AssistantBackend.ApiKey : AssistantBackend.ClaudeCode;
+    }
+
+    /// <summary>Points the panel at a claude.exe the search did not find, and checks it.</summary>
+    public void UseClaudeCodeAt(string path)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(path);
+        _claudeCode.ConfiguredPath = path;
+        ResetSession();
+        ClaudeCodePathChanged?.Invoke(this, EventArgs.Empty);
+        _ = CheckClaudeCodeAsync();
+    }
+
+    /// <summary>Raised when the user picks a claude.exe, so the window can save it.</summary>
+    public event EventHandler? ClaudeCodePathChanged;
+
+    public string? ClaudeCodeConfiguredPath => _claudeCode.ConfiguredPath;
+
+    /// <summary>Raised when the back end changes, so the window can save the choice.</summary>
+    public event EventHandler? BackendChanged;
+
+    public bool UsesClaudeCode => _backend == AssistantBackend.ClaudeCode;
+
+    public ClaudeCodeStatus ClaudeCodeStatus => _claudeStatus;
+
+    /// <summary>Claude Code is chosen and was not found.</summary>
+    public bool ClaudeCodeMissing => UsesClaudeCode && _claudeStatus.State == ClaudeCodeState.NotInstalled;
+
+    /// <summary>Claude Code is chosen, found, and not signed in.</summary>
+    public bool ClaudeCodeSignedOut => UsesClaudeCode && _claudeStatus.State == ClaudeCodeState.SignedOut;
+
+    /// <summary>One line under the header: which back end, and how it stands.</summary>
+    public string BackendNote => _backend switch
+    {
+        AssistantBackend.ApiKey => _hasKey ? "API key - billed per use to the key's account." : "API key - none saved yet.",
+        _ => _claudeStatus.State switch
+        {
+            ClaudeCodeState.Ready => $"Claude Code, signed in with {_claudeStatus.Detail ?? "your account"}.",
+            ClaudeCodeState.NotInstalled => "Claude Code was not found on this PC.",
+            ClaudeCodeState.SignedOut => "Claude Code is installed but not signed in.",
+            _ => _checking ? "Looking for Claude Code..." : "Claude Code - uses your Claude plan.",
+        },
+    };
+
+    /// <summary>The claude that will run, for the sign-in button. Null when not found.</summary>
+    public string? ClaudeCodeExecutable => _claudeStatus.Executable;
+
+    public RelayCommand CheckClaudeCodeCommand { get; }
+
+    /// <summary>Looks for Claude Code and asks whether it is signed in. Never throws.</summary>
+    public async Task CheckClaudeCodeAsync()
+    {
+        if (_checking)
+        {
+            return;
+        }
+
+        _checking = true;
+        CheckClaudeCodeCommand.NotifyCanExecuteChanged();
+        OnPropertyChanged(nameof(BackendNote));
+        try
+        {
+            _claudeStatus = await _claudeCode.CheckAsync().ConfigureAwait(true);
+        }
+        catch (Exception ex) when (ex is IOException or InvalidOperationException or UnauthorizedAccessException)
+        {
+            _claudeStatus = new ClaudeCodeStatus(ClaudeCodeState.Unknown, null, ex.Message);
+        }
+        finally
+        {
+            _checking = false;
+            CheckClaudeCodeCommand.NotifyCanExecuteChanged();
+            RaiseReadiness();
+        }
+    }
+
+    private void RaiseReadiness()
+    {
+        OnPropertyChanged(nameof(Backend));
+        OnPropertyChanged(nameof(BackendIndex));
+        OnPropertyChanged(nameof(UsesClaudeCode));
+        OnPropertyChanged(nameof(NeedsKey));
+        OnPropertyChanged(nameof(IsReady));
+        OnPropertyChanged(nameof(ClaudeCodeStatus));
+        OnPropertyChanged(nameof(ClaudeCodeMissing));
+        OnPropertyChanged(nameof(ClaudeCodeSignedOut));
+        OnPropertyChanged(nameof(ClaudeCodeExecutable));
+        OnPropertyChanged(nameof(BackendNote));
+        OnPropertyChanged(nameof(CanSend));
+        SendCommand.NotifyCanExecuteChanged();
+        AskCommand.NotifyCanExecuteChanged();
+    }
+
+    private void ResetSession()
+    {
+        (_session as IDisposable)?.Dispose();
+        _session = null;
+    }
+
+    /// <summary>The conversation for the chosen back end, made on first use or after a change.</summary>
+    private IConversation? EnsureSession()
+    {
+        if (_backend == AssistantBackend.ApiKey)
+        {
+            if (_keys.Load() is not { Length: > 0 } key)
+            {
+                return null;
+            }
+
+            _client ??= new ClaudeClient(key, _handler());
+            if (_session is not ConversationSession api || api.Options.Model != _model)
+            {
+                IConversation? previous = _session;
+                ResetSession();
+                _session = new ConversationSession(_client, _tools, new AssistantOptions { Model = _model });
+                if (previous is { MessageCount: > 0 })
+                {
+                    // The history lives in the session; a model switch mid-chat starts a fresh one, and says so.
+                    Add(new ChatNoticeViewModel($"Switched to {_model} - it starts without the earlier messages."));
+                }
+            }
+
+            return _session;
+        }
+
+        if (_session is ClaudeCodeSession code)
+        {
+            // Claude Code keeps the history itself; a new model resumes the same session.
+            code.SetModel(_model);
+            return code;
+        }
+
+        ResetSession();
+        string exe = _claudeStatus.Executable ?? _claudeCode.Locator.Find(_claudeCode.ConfiguredPath)
+            ?? throw new ClaudeApiException("Claude Code was not found on this PC. Install it, or switch the panel to an API key.");
+
+        _bridge ??= new ToolBridgeServer(ToolBridgeServer.NewPipeName(), RunToolOnThisThread());
+        Directory.CreateDirectory(_claudeCode.DataFolder);
+        string mcp = Path.Combine(_claudeCode.DataFolder, "mcp.json");
+        string prompt = Path.Combine(_claudeCode.DataFolder, "system-prompt.txt");
+        File.WriteAllText(mcp, McpConfig(_claudeCode.SelfExecutable ?? "LogicControl.exe", _bridge.PipeName));
+        File.WriteAllText(prompt, AssistantPrompt.System);
+
+        _session = new ClaudeCodeSession(
+            new ClaudeCodeOptions
+            {
+                Executable = exe,
+                McpConfigFile = mcp,
+                SystemPromptFile = prompt,
+                WorkingDirectory = Path.Combine(_claudeCode.DataFolder, "work"),
+                Model = _model,
+            },
+            _claudeCode.Launcher);
+        return _session;
+    }
+
+    /// <summary>The MCP configuration Claude Code is started with: LogicControl, attached to this window.</summary>
+    internal static string McpConfig(string selfExecutable, string pipe) =>
+        new System.Text.Json.Nodes.JsonObject
+        {
+            ["mcpServers"] = new System.Text.Json.Nodes.JsonObject
+            {
+                [ClaudeCodeSession.ServerName] = new System.Text.Json.Nodes.JsonObject
+                {
+                    ["command"] = selfExecutable,
+                    ["args"] = new System.Text.Json.Nodes.JsonArray("--mcp", "--attach", pipe),
+                },
+            },
+        }.ToJsonString(new JsonSerializerOptions { WriteIndented = true });
+
+    /// <summary>
+    /// How a tool call from the pipe runs: on the thread this was made on - the UI thread in the
+    /// app - because the tools read the open project and write the Develop tab's drafts.
+    /// </summary>
+    private Func<string, JsonElement, Task<ToolResult>> RunToolOnThisThread()
+    {
+        SynchronizationContext? context = SynchronizationContext.Current;
+        return (name, input) =>
+        {
+            if (context is null)
+            {
+                return Task.FromResult(_tools.Execute(name, input));
+            }
+
+            var done = new TaskCompletionSource<ToolResult>(TaskCreationOptions.RunContinuationsAsynchronously);
+            context.Post(_ =>
+            {
+                try
+                {
+                    done.SetResult(_tools.Execute(name, input));
+                }
+                catch (Exception ex) when (ex is ArgumentException or InvalidOperationException or JsonException or KeyNotFoundException)
+                {
+                    done.SetResult(ToolResult.Fail(ex.Message));
+                }
+            }, null);
+            return done.Task;
+        };
+    }
+
+    /// <summary>Stops Claude Code and the pipe - the window is closing.</summary>
+    public void Shutdown()
+    {
+        ResetSession();
+        _bridge?.Dispose();
+        _bridge = null;
+    }
 
     public bool IsEmpty => Items.Count == 0;
 
@@ -185,7 +455,11 @@ public sealed class AssistantViewModel : ObservableObject, IToolHost, IAssistant
         _keys.Save(k);
         _client?.Dispose();
         _client = null;
-        _session = null;
+        if (_session is ConversationSession)
+        {
+            ResetSession();
+        }
+
         SetHasKey(true);
         return null;
     }
@@ -195,7 +469,11 @@ public sealed class AssistantViewModel : ObservableObject, IToolHost, IAssistant
         _keys.Clear();
         _client?.Dispose();
         _client = null;
-        _session = null;
+        if (_session is ConversationSession)
+        {
+            ResetSession();
+        }
+
         SetHasKey(false);
     }
 
@@ -203,10 +481,8 @@ public sealed class AssistantViewModel : ObservableObject, IToolHost, IAssistant
     {
         _hasKey = value;
         OnPropertyChanged(nameof(HasKey));
-        OnPropertyChanged(nameof(NeedsKey));
-        SendCommand.NotifyCanExecuteChanged();
-        AskCommand.NotifyCanExecuteChanged();
         ForgetKeyCommand.NotifyCanExecuteChanged();
+        RaiseReadiness();
     }
 
     // ------------------------------------------------------------------ chat
@@ -216,22 +492,26 @@ public sealed class AssistantViewModel : ObservableObject, IToolHost, IAssistant
     {
         string text = _input.Trim();
         IsOpen = true;
-        if (text.Length == 0 || IsBusy || _keys.Load() is not { Length: > 0 } key)
+        if (text.Length == 0 || IsBusy || !IsReady)
         {
-            // No key yet: the question stays in the box and the panel shows where the key goes.
+            // Not ready yet: the question stays in the box and the panel shows what is missing.
             return;
         }
 
-        _client ??= new ClaudeClient(key, _handler());
-        if (_session is null || _session.Options.Model != _model)
+        IConversation? session;
+        try
         {
-            ConversationSession? previous = _session;
-            _session = new ConversationSession(_client, _tools, new AssistantOptions { Model = _model });
-            if (previous is not null && previous.MessageCount > 0)
-            {
-                // The history lives in the session; a model switch mid-chat starts a fresh one, and says so.
-                Add(new ChatNoticeViewModel($"Switched to {_model} - it starts without the earlier messages."));
-            }
+            session = EnsureSession();
+        }
+        catch (Exception ex) when (ex is ClaudeApiException or IOException or UnauthorizedAccessException)
+        {
+            Add(new ChatNoticeViewModel(ex.Message, isError: true));
+            return;
+        }
+
+        if (session is null)
+        {
+            return;
         }
 
         Input = string.Empty;
@@ -245,11 +525,11 @@ public sealed class AssistantViewModel : ObservableObject, IToolHost, IAssistant
         _lastDraft = null;
         _running = new CancellationTokenSource();
         RaiseBusy();
-        Status = "Thinking...";
+        Status = UsesClaudeCode && session.MessageCount == 0 ? "Starting Claude Code..." : "Thinking...";
 
         try
         {
-            await _session.RunTurnAsync(text, _includeContext ? BuildContext() : null, this, _running.Token).ConfigureAwait(true);
+            await session.RunTurnAsync(text, _includeContext ? BuildContext() : null, this, _running.Token).ConfigureAwait(true);
         }
         catch (OperationCanceledException)
         {
@@ -318,6 +598,7 @@ public sealed class AssistantViewModel : ObservableObject, IToolHost, IAssistant
             MainViewModel.OverviewTab => "Overview",
             MainViewModel.HardwareTab => "Hardware",
             MainViewModel.CommsTab => "Communications",
+            MainViewModel.SystemTab => "System",
             MainViewModel.TagsTab => "Tags",
             MainViewModel.LogicTab => "Logic",
             MainViewModel.FindingsTab => "Findings",

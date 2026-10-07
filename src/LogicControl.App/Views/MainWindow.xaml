@@ -1554,10 +1554,53 @@
             <Button DockPanel.Dock="Right" Style="{StaticResource ToolButton}" Command="{Binding NewChatCommand}" ToolTip="New chat">
               <TextBlock Style="{StaticResource Glyph}" FontSize="12" Text="&#xE710;" />
             </Button>
-            <ComboBox DockPanel.Dock="Right" ItemsSource="{Binding Models}" SelectedItem="{Binding Model, Mode=TwoWay}" Width="170" Margin="0,0,6,0"
-                      ToolTip="Sonnet is quick and cheaper; Opus thinks harder about large or tangled logic; Haiku is cheapest." />
+            <ComboBox DockPanel.Dock="Right" ItemsSource="{Binding Models}" SelectedItem="{Binding Model, Mode=TwoWay}" Width="150" Margin="0,0,6,0"
+                      ToolTip="Sonnet is quick; Opus thinks harder about large or tangled logic; Haiku is lightest." />
             <TextBlock Style="{StaticResource PanelHead}" Text="CLAUDE" VerticalAlignment="Center" />
           </DockPanel>
+
+          <!-- Which Claude: the user's own Claude Code on their plan, or an API key. -->
+          <DockPanel DockPanel.Dock="Top" Margin="12,0,10,8">
+            <ComboBox DockPanel.Dock="Left" SelectedIndex="{Binding BackendIndex, Mode=TwoWay}" Width="200" Margin="0,0,8,0"
+                      ToolTip="Your Claude plan runs through Claude Code on this PC - no API key or credits. An API key is billed per use.">
+              <ComboBoxItem Content="Your Claude plan (Claude Code)" />
+              <ComboBoxItem Content="API key (billed per use)" />
+            </ComboBox>
+            <TextBlock Style="{StaticResource Muted}" Text="{Binding BackendNote}" TextWrapping="Wrap" VerticalAlignment="Center" />
+          </DockPanel>
+
+          <!-- Claude Code not found -->
+          <Border DockPanel.Dock="Top" Margin="12,0,12,10" Padding="12" Background="{DynamicResource bg-1}"
+                  BorderBrush="{DynamicResource line}" BorderThickness="1" CornerRadius="6"
+                  Visibility="{Binding ClaudeCodeMissing, Converter={StaticResource BoolToVisible}}">
+            <StackPanel>
+              <TextBlock Text="Install Claude Code to use your Claude plan" FontWeight="SemiBold" Foreground="{DynamicResource txt-0}" Margin="0,0,0,6" />
+              <TextBlock Style="{StaticResource Muted}" TextWrapping="Wrap" Margin="0,0,0,8"
+                         Text="LogicControl runs Claude Code in the background, so the chat uses your Claude subscription instead of API credits. Claude Code's command-line tool was not found on this PC. Install it from PowerShell, then press Check again:" />
+              <TextBox Style="{StaticResource ChatText}" FontFamily="{DynamicResource mono}" Text="irm https://claude.ai/install.ps1 | iex" Margin="0,0,0,10" />
+              <WrapPanel>
+                <Button Style="{StaticResource PrimaryButton}" Content="Check again" Command="{Binding CheckClaudeCodeCommand}" Margin="0,0,6,6" />
+                <Button Style="{StaticResource SmallButton}" Content="Install guide..." Click="OnInstallClaudeCode" Margin="0,0,6,6" />
+                <Button Style="{StaticResource SmallButton}" Content="Locate claude.exe..." Click="OnLocateClaudeCode" Margin="0,0,6,6"
+                        ToolTip="Point LogicControl at a claude.exe it did not find" />
+              </WrapPanel>
+            </StackPanel>
+          </Border>
+
+          <!-- Claude Code not signed in -->
+          <Border DockPanel.Dock="Top" Margin="12,0,12,10" Padding="12" Background="{DynamicResource bg-1}"
+                  BorderBrush="{DynamicResource line}" BorderThickness="1" CornerRadius="6"
+                  Visibility="{Binding ClaudeCodeSignedOut, Converter={StaticResource BoolToVisible}}">
+            <StackPanel>
+              <TextBlock Text="Sign in to Claude Code" FontWeight="SemiBold" Foreground="{DynamicResource txt-0}" Margin="0,0,0,6" />
+              <TextBlock Style="{StaticResource Muted}" TextWrapping="Wrap" Margin="0,0,0,10"
+                         Text="Claude Code is installed but not signed in. Sign in once with the Claude account whose plan the chat should use - a browser opens for it - then press Check again." />
+              <WrapPanel>
+                <Button Style="{StaticResource PrimaryButton}" Content="Sign in..." Click="OnSignInClaudeCode" Margin="0,0,6,6" />
+                <Button Style="{StaticResource SmallButton}" Content="Check again" Command="{Binding CheckClaudeCodeCommand}" Margin="0,0,6,6" />
+              </WrapPanel>
+            </StackPanel>
+          </Border>
 
           <!-- No key yet -->
           <Border DockPanel.Dock="Top" Margin="12,0,12,10" Padding="12" Background="{DynamicResource bg-1}"
@@ -1566,7 +1609,7 @@
             <StackPanel>
               <TextBlock Text="Connect an Anthropic API key" FontWeight="SemiBold" Foreground="{DynamicResource txt-0}" Margin="0,0,0,6" />
               <TextBlock Style="{StaticResource Muted}" TextWrapping="Wrap" Margin="0,0,0,10"
-                         Text="The assistant talks to Claude through Anthropic's API, billed per use to the key's account - separate from a Claude subscription. The project details it reads are sent to Anthropic to answer. The key is stored encrypted for your Windows account only." />
+                         Text="With an API key the assistant talks to Anthropic's API directly, billed per use to the key's account - separate from a Claude subscription, and the account needs credits. To use your Claude plan instead, pick it in the list above. The key is stored encrypted for your Windows account only." />
               <PasswordBox x:Name="ApiKeyBox" Margin="0,0,0,8" MinHeight="{DynamicResource field-h}" VerticalContentAlignment="Center"
                            Background="{DynamicResource bg-2}" Foreground="{DynamicResource txt-0}" BorderBrush="{DynamicResource line}"
                            CaretBrush="{DynamicResource txt-0}" Padding="6,0" />
@@ -1592,7 +1635,7 @@
               </DockPanel>
               <TextBox x:Name="AssistantInput" Style="{StaticResource MultiLineBox}" FontFamily="{DynamicResource font}"
                        Text="{Binding Input, UpdateSourceTrigger=PropertyChanged}" MinHeight="54" MaxHeight="200"
-                       IsEnabled="{Binding HasKey}" PreviewKeyDown="OnAssistantInputKeyDown"
+                       IsEnabled="{Binding IsReady}" PreviewKeyDown="OnAssistantInputKeyDown"
                        ToolTip="Ask about the project, or ask for logic: 'add a jam timer to every conveyor'" />
             </DockPanel>
           </Border>
@@ -1679,7 +1722,7 @@
                          TextWrapping="Wrap" Margin="0,0,0,6" />
               <TextBlock Style="{StaticResource Muted}" TextWrapping="Wrap" Margin="0,0,0,14"
                          Text="Claude reads the open export through LogicControl and writes new or changed logic into the Develop tab as drafts. Nothing reaches a controller - you review, export and import through Studio 5000." />
-              <ItemsControl ItemsSource="{Binding Suggestions}" Visibility="{Binding HasKey, Converter={StaticResource BoolToVisible}}">
+              <ItemsControl ItemsSource="{Binding Suggestions}" Visibility="{Binding IsReady, Converter={StaticResource BoolToVisible}}">
                 <ItemsControl.ItemTemplate>
                   <DataTemplate>
                     <Button Style="{StaticResource SmallButton}" HorizontalAlignment="Stretch" HorizontalContentAlignment="Left" Margin="0,0,0,6" Padding="10,6"

@@ -55,10 +55,14 @@ public sealed class MainViewModel : ObservableObject
     /// <param name="keys">Where the assistant's API key is kept: DPAPI in the app, memory by default.</param>
     /// <param name="handler">An HTTP handler for the assistant - a scripted one in tests.</param>
     /// <param name="model">The assistant's model, as last chosen.</param>
-    public MainViewModel(IApiKeyStore? keys = null, Func<HttpMessageHandler?>? handler = null, string? model = null)
+    /// <param name="backend">The assistant's back end as last chosen; null picks one (see AssistantViewModel).</param>
+    /// <param name="claudeCode">Where and how to run Claude Code - the app's real one, or a test's.</param>
+    public MainViewModel(
+        IApiKeyStore? keys = null, Func<HttpMessageHandler?>? handler = null, string? model = null,
+        AssistantBackend? backend = null, ClaudeCodeEnvironment? claudeCode = null)
     {
         SystemView = new SystemViewModel(this);
-        Assistant = new AssistantViewModel(this, keys ?? new MemoryKeyStore(), handler, model);
+        Assistant = new AssistantViewModel(this, keys ?? new MemoryKeyStore(), handler, model, backend, claudeCode);
         Assistant.PropertyChanged += (_, e) =>
         {
             if (e.PropertyName is nameof(AssistantViewModel.IsOpen))

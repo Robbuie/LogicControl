@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.4.1 - Claude on your Claude plan
+
+- **The Claude panel runs on your Claude plan.** It now drives your own Claude Code (signed in
+  with your Claude subscription) in the background, so no API key or credits are needed. Claude's
+  tools still run in the open window - it reads the project on screen and its drafts land in the
+  Develop tab as it works. The panel finds Claude Code, says if it needs installing or signing in,
+  and opens the sign-in. An API key is still an option in the panel's list.
+
 ## 0.4.0 - edit in place with a revision history, the system view, more findings
 
 - **Edit a routine in place.** Edit on the Logic tab (or double-click a rung) opens the routine in
