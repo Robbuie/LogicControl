@@ -1,4 +1,5 @@
 using System.IO;
+using System.Net.Http;
 using System.Globalization;
 using LogicControl.App.Composition;
 using LogicControl.App.ViewModels.Assistant;
