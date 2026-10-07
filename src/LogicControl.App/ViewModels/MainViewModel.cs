@@ -1,6 +1,7 @@
 using System.IO;
 using System.Globalization;
 using LogicControl.App.Composition;
+using LogicControl.App.ViewModels.Assistant;
 using LogicControl.App.ViewModels.Develop;
 using LogicControl.Core.Analysis;
 using LogicControl.Core.L5x;
@@ -48,8 +49,21 @@ public sealed class MainViewModel : ObservableObject
     private IReadOnlyList<TagRowViewModel> _allTags = [];
     private IReadOnlyList<FindingRowViewModel> _allFindings = [];
 
-    public MainViewModel()
+    /// <param name="keys">Where the assistant's API key is kept: DPAPI in the app, memory by default.</param>
+    /// <param name="handler">An HTTP handler for the assistant - a scripted one in tests.</param>
+    /// <param name="model">The assistant's model, as last chosen.</param>
+    public MainViewModel(IApiKeyStore? keys = null, Func<HttpMessageHandler?>? handler = null, string? model = null)
     {
+        Assistant = new AssistantViewModel(this, keys ?? new MemoryKeyStore(), handler, model);
+        Assistant.PropertyChanged += (_, e) =>
+        {
+            if (e.PropertyName is nameof(AssistantViewModel.IsOpen))
+            {
+                OnPropertyChanged(nameof(ShowWorkspace));
+                OnPropertyChanged(nameof(IsEmpty));
+            }
+        };
+
         ReloadCommand = new RelayCommand(() => _ = ReloadAsync(), () => _filePath is not null && !_isBusy);
         CloseCommand = new RelayCommand(Close, () => _analysis is not null);
         ClearFilterCommand = new RelayCommand(() => Filter = string.Empty);
@@ -81,10 +95,13 @@ public sealed class MainViewModel : ObservableObject
 
     public bool HasProject => _analysis is not null;
 
-    public bool IsEmpty => _analysis is null && !_isBusy && !_developing;
+    public bool IsEmpty => _analysis is null && !_isBusy && !_developing && !Assistant.IsOpen;
 
     /// <summary>The tabs are on screen: a project is open, or drafts are being written without one.</summary>
-    public bool ShowWorkspace => _analysis is not null || _developing;
+    public bool ShowWorkspace => _analysis is not null || _developing || Assistant.IsOpen;
+
+    /// <summary>The Claude panel on the right of the window.</summary>
+    public AssistantViewModel Assistant { get; }
 
     /// <summary>The Develop tab: drafts, their editors, checks and exports.</summary>
     public DevelopViewModel Develop { get; } = new();

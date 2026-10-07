@@ -27,6 +27,26 @@ back as L5X for Studio 5000 to import.
   carried as context - or **write into a copy of the project** and open that in Studio 5000.
 - Save the drafts as a `.lcdev` file and carry on later.
 
+**Claude** (the assistant panel, Ctrl+Shift+A)
+
+- Ask about the open project - "why doesn't M101 start?", "what talks to the robot PLC?", "review
+  the findings" - and Claude reads the routines, tags, cross-references and comms to answer, citing
+  Program/Routine rung numbers.
+- Ask for logic - "add a jam timer to every conveyor" - and Claude drafts the tags, UDTs, rungs or
+  AOIs into the Develop tab, checked like anything typed by hand, for you to review and export.
+- Needs an Anthropic API key (console.anthropic.com), billed per use and separate from a Claude
+  subscription. Project details Claude reads are sent to Anthropic to answer.
+
+**Or use Claude in VS Code** with your own Claude plan: LogicControl is also an MCP server.
+
+```
+claude mcp add logiccontrol -- "%LOCALAPPDATA%\Programs\LogicControl\LogicControl.exe" --mcp
+```
+
+Then ask Claude to open an export (or pass its path after `--mcp`). Drafts are saved to
+`Documents\LogicControl\Claude drafts.lcdev` (`--drafts <file>` to change it); open that file in
+LogicControl to review and export.
+
 It never connects to a controller. Everything it writes goes through Studio 5000's import and
 verify, and a person, before it gets near one.
 

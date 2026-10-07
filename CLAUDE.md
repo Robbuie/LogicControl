@@ -43,12 +43,15 @@ src/LogicControl.Core/        engine - MUST NOT reference any UI assembly
     Authoring/                drafts, DraftChecker, L5xWriter (import files), ProjectMerger
                               (write into a whole-project copy), LogicTemplates, DeclarationText
     Analysis/                 cross-reference, hardware tree, comms map, findings, ProjectAnalysis
+    Assistant/                LogicTools (the AI's tool table), ClaudeClient (Messages API, SSE),
+                              ConversationSession (tool-use loop), AssistantPrompt, McpServer
     Diagnostics/              rolling trace log, ported from NetControl
 src/LogicControl.App/         WPF shell
     Appearance/               NetControl's design system + this app's additions (bottom of Controls.xaml)
     Composition/              paths, MVVM plumbing
     Diagnostics/              build info, settings.json, update check/download/apply (from NetControl)
-    ViewModels/               WPF-free; everything the window shows. Develop/ is the Develop tab
+    ViewModels/               WPF-free; everything the window shows. Develop/ is the Develop tab,
+                              Assistant/ the Claude panel
     Views/                    MainWindow, AppearanceWindow, UpdateWindow, LadderRungView
 tests/LogicControl.Tests/     xUnit, net10.0-windows (references the App); Fixtures/Line3.L5X
 installer/                    Inno Setup script; tools/publish.ps1 builds exe + installer
@@ -78,12 +81,19 @@ installer/                    Inno Setup script; tools/publish.ps1 builds exe + 
   Preset/Accum is what Studio exports and is not flagged.
 - `LadderRungView` draws in OnRender; its colours are dependency properties fed from tokens by the
   `LadderRung` style. Never look a brush up inside OnRender.
+- **The assistant can only change drafts.** LogicTools has no tool that touches a controller,
+  edits the opened project or writes any file other than the drafts (the --mcp host saves its own
+  .lcdev after each change); draft tools write the DevelopmentSet and return the checker's verdict. Keep it that way - new tools that act outside the drafts need a person in the loop.
+- **One tool table, two front ends**: the panel (ConversationSession over the API) and
+  `LogicControl.exe --mcp` (McpServer). A tool added to LogicTools appears in both. Nothing may
+  write to stdout in --mcp mode except protocol messages.
+- The API key is DPAPI-encrypted (Composition/DpapiKeyStore, P/Invoke - no package). Never log it.
 - The installer `AppId` GUID and `InstallLocation.UninstallKey` are the same GUID. Never change it.
 
 ## Status
 
-Built and tested on Linux (.NET 10.0.112) with an offline xunit stand-in: the engine, the view
-models and the ported updater compile and 164 tests pass. **The WPF project - XAML and
-code-behind - has still never been compiled**: no Windows Desktop targeting pack was reachable.
-The first `verify` run on GitHub is that compile. Then: import each kind of export file into a
-scratch Studio 5000 project (PLAN.md step A) and flip TreatWarningsAsErrors on.
+0.2.0 built and ran on Windows (the user opened projects with it). The engine, view models,
+updater and assistant are tested on Linux (.NET 10.0.112) with an offline xunit stand-in: 178
+tests pass. **The 0.3.0 XAML - the Claude panel and its code-behind - has not been compiled
+yet**; the next `verify` run on GitHub is that compile. Still open: import each kind of export
+file into a scratch Studio 5000 project (PLAN.md step A), then flip TreatWarningsAsErrors on.

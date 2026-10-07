@@ -1,5 +1,6 @@
 // UseWPF drops System.IO from the implicit usings; a file path arrives on the command line.
 using System.IO;
+using System.Text;
 using System.Windows;
 using System.Windows.Threading;
 using LogicControl.App.Appearance;
@@ -27,6 +28,13 @@ public partial class App : Application
     protected override void OnStartup(StartupEventArgs e)
     {
         base.OnStartup(e);
+
+        // LogicControl.exe --mcp: no window, LogicControl's tools served to Claude over stdio.
+        if (e.Args.Contains("--mcp", StringComparer.OrdinalIgnoreCase))
+        {
+            RunMcpServer(e.Args);
+            return;
+        }
 
         DispatcherUnhandledException += OnDispatcherUnhandledException;
         AppDomain.CurrentDomain.UnhandledException += OnDomainUnhandledException;
@@ -59,7 +67,25 @@ public partial class App : Application
             });
         });
 
-        var viewModel = new MainViewModel();
+        // The assistant's key is DPAPI-encrypted for this Windows user; its model and whether the
+        // panel was open are remembered between runs.
+        AssistantPreferences preferences = AssistantPreferences.Load();
+        var viewModel = new MainViewModel(new DpapiKeyStore(), handler: null, model: preferences.Model);
+        viewModel.Assistant.IsOpen = preferences.Open;
+        viewModel.Assistant.ModelChanged += (_, _) =>
+        {
+            preferences.Model = viewModel.Assistant.Model;
+            preferences.Save();
+        };
+        viewModel.Assistant.PropertyChanged += (_, args) =>
+        {
+            if (args.PropertyName == nameof(viewModel.Assistant.IsOpen))
+            {
+                preferences.Open = viewModel.Assistant.IsOpen;
+                preferences.Save();
+            }
+        };
+
         var window = new MainWindow { DataContext = viewModel };
         window.Show();
 
@@ -99,6 +125,37 @@ public partial class App : Application
         AppSettings settings = AppSettings.Load(AppPaths.SettingsFile, _trace);
         UpdateResult result = await UpdateCheck.RunAsync(settings, BuildInfo.Version, trace: _trace).ConfigureAwait(true);
         viewModel.UpdateStatus = result.IsUpdateAvailable ? result.StatusText : null;
+    }
+
+    /// <summary>
+    /// Serves LogicControl's tools to Claude in VS Code or the desktop app (see McpServer). Stays
+    /// windowless until the client closes stdin, then shuts down. A GUI-subsystem exe can still use
+    /// stdio when its parent hands it pipes, which is exactly what an MCP client does.
+    /// </summary>
+    private void RunMcpServer(string[] args)
+    {
+        ShutdownMode = ShutdownMode.OnExplicitShutdown;
+
+        int at = Array.FindIndex(args, a => string.Equals(a, "--drafts", StringComparison.OrdinalIgnoreCase));
+        string drafts = at >= 0 && at + 1 < args.Length
+            ? args[at + 1]
+            : Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments), "LogicControl", "Claude drafts" + Core.Authoring.DevelopmentSet.FileExtension);
+
+        var log = new StreamWriter(Console.OpenStandardError(), new UTF8Encoding(false)) { AutoFlush = true };
+        var host = new Core.Assistant.FileToolHost(drafts, log);
+
+        string? project = args.FirstOrDefault(a => a.EndsWith(".l5x", StringComparison.OrdinalIgnoreCase) && File.Exists(a));
+        if (project is not null && host.OpenProject(project) is { } problem)
+        {
+            log.WriteLine(problem);
+        }
+
+        var server = new Core.Assistant.McpServer(host, BuildInfo.Version);
+        var input = new StreamReader(Console.OpenStandardInput(), new UTF8Encoding(false));
+        var output = new StreamWriter(Console.OpenStandardOutput(), new UTF8Encoding(false)) { AutoFlush = true };
+
+        Task.Run(() => server.RunAsync(input, output))
+            .ContinueWith(_ => Dispatcher.InvokeAsync(Shutdown), TaskScheduler.Default);
     }
 
     protected override void OnExit(ExitEventArgs e)

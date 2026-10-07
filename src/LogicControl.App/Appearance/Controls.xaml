@@ -1724,4 +1724,33 @@
     <Setter Property="Margin" Value="0,0,3,3" />
   </Style>
 
+  <!-- ===================================================================== -->
+  <!--  Assistant chat                                                       -->
+  <!--                                                                       -->
+  <!--  Chat text is a read-only TextBox with no chrome rather than a          -->
+  <!--  TextBlock, so an answer can be selected and copied - rung text above   -->
+  <!--  all, which is what gets pasted into Studio 5000.                       -->
+  <!-- ===================================================================== -->
+
+  <Style x:Key="ChatText" TargetType="TextBox">
+    <Setter Property="IsReadOnly" Value="True" />
+    <Setter Property="Background" Value="Transparent" />
+    <Setter Property="BorderThickness" Value="0" />
+    <Setter Property="Padding" Value="0" />
+    <Setter Property="TextWrapping" Value="Wrap" />
+    <Setter Property="Foreground" Value="{DynamicResource txt-0}" />
+    <Setter Property="FontFamily" Value="{DynamicResource font}" />
+    <Setter Property="FontSize" Value="{DynamicResource ui-font}" />
+    <Setter Property="SelectionBrush" Value="{DynamicResource accent}" />
+    <Setter Property="Template">
+      <Setter.Value>
+        <ControlTemplate TargetType="TextBox">
+          <ScrollViewer x:Name="PART_ContentHost" Background="Transparent" Focusable="False"
+                        HorizontalScrollBarVisibility="{TemplateBinding HorizontalScrollBarVisibility}"
+                        VerticalScrollBarVisibility="{TemplateBinding VerticalScrollBarVisibility}" />
+        </ControlTemplate>
+      </Setter.Value>
+    </Setter>
+  </Style>
+
 </ResourceDictionary>

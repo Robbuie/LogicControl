@@ -51,6 +51,14 @@ public partial class MainWindow : Window
 
         InputBindings.Add(new KeyBinding(new RelayKey(() => OnDevelopSave(this, new RoutedEventArgs())), Key.S, ModifierKeys.Control));
 
+        InputBindings.Add(new KeyBinding(new RelayKey(() =>
+        {
+            if (ViewModel is { } vm)
+            {
+                vm.Assistant.IsOpen = !vm.Assistant.IsOpen;
+            }
+        }), Key.A, ModifierKeys.Control | ModifierKeys.Shift));
+
         DataContextChanged += OnDataContextChanged;
         Closing += OnClosing;
 
@@ -171,8 +179,103 @@ public partial class MainWindow : Window
             {
                 view.GroupDescriptions.Add(new PropertyGroupDescription(nameof(DraftItemViewModel.Group)));
             }
+
+            vm.Assistant.PropertyChanged += OnAssistantChanged;
+            SizeAssistant(vm.Assistant.IsOpen);
         }
     }
+
+    // ------------------------------------------------------------------ assistant
+
+    /// <summary>The width the panel opens at, and the width it had when it was last closed.</summary>
+    private GridLength _assistantWidth = new(420);
+
+    private bool _chatFollows = true;
+
+    private void OnAssistantChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName == nameof(ViewModels.Assistant.AssistantViewModel.IsOpen) && sender is ViewModels.Assistant.AssistantViewModel a)
+        {
+            SizeAssistant(a.IsOpen);
+            if (a.IsOpen)
+            {
+                Dispatcher.InvokeAsync(() => AssistantInput.Focus(), System.Windows.Threading.DispatcherPriority.Input);
+            }
+        }
+    }
+
+    /// <summary>
+    /// Opens or closes the panel's column. A star or pixel width on a hidden column would still take
+    /// space, so closed is zero; the width the user dragged it to is kept for next time.
+    /// </summary>
+    private void SizeAssistant(bool open)
+    {
+        if (!open && AssistantColumn.Width.Value > 0)
+        {
+            _assistantWidth = AssistantColumn.Width;
+        }
+
+        AssistantSplitterColumn.Width = open ? new GridLength(8) : new GridLength(0);
+        AssistantColumn.Width = open ? _assistantWidth : new GridLength(0);
+        AssistantColumn.MinWidth = open ? 300 : 0;
+    }
+
+    /// <summary>Enter sends, Shift+Enter is a new line - the chat convention.</summary>
+    private void OnAssistantInputKeyDown(object sender, KeyEventArgs e)
+    {
+        if (e.Key == Key.Enter && (Keyboard.Modifiers & ModifierKeys.Shift) == 0 && ViewModel?.Assistant is { } a)
+        {
+            e.Handled = true;
+            if (a.SendCommand.CanExecute(null))
+            {
+                _chatFollows = true;
+                a.SendCommand.Execute(null);
+            }
+        }
+    }
+
+    /// <summary>Keeps the newest text in view while it streams, unless the user has scrolled up to read.</summary>
+    private void OnChatScrollChanged(object sender, ScrollChangedEventArgs e)
+    {
+        if (e.ExtentHeightChange == 0)
+        {
+            _chatFollows = ChatScroll.VerticalOffset >= ChatScroll.ScrollableHeight - 8;
+        }
+        else if (_chatFollows)
+        {
+            ChatScroll.ScrollToEnd();
+        }
+    }
+
+    private void OnSaveApiKey(object sender, RoutedEventArgs e)
+    {
+        if (ViewModel?.Assistant is not { } a)
+        {
+            return;
+        }
+
+        string? problem;
+        try
+        {
+            problem = a.SaveKey(ApiKeyBox.Password);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidOperationException)
+        {
+            problem = $"The key could not be stored: {ex.Message}";
+        }
+
+        ApiKeyError.Text = problem ?? string.Empty;
+        ApiKeyError.Visibility = problem is null ? Visibility.Collapsed : Visibility.Visible;
+        if (problem is null)
+        {
+            ApiKeyBox.Clear();
+            AssistantInput.Focus();
+        }
+    }
+
+    private void OnGetApiKey(object sender, RoutedEventArgs e) => Shell.Open(this, "https://console.anthropic.com/settings/keys");
+
+    private void OnShowAssistantDrafts(object sender, RoutedEventArgs e) => ViewModel?.Assistant.ShowDrafts();
 
     private DevelopViewModel? Develop => ViewModel?.Develop;
 

@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.3.0 - Claude in LogicControl
+
+- Claude assistant panel (Ctrl+Shift+A, or the Claude button): ask about the open project and get
+  logic drafted. Claude reads routines, tags, cross-references, hardware, communications and
+  findings through LogicControl's tools, and writes data types, tags, routines and AOIs into the
+  Develop tab, where the checker reviews them. Rungs in answers are drawn as ladder.
+- Answers stream; every tool call is listed and can be expanded; Stop, New chat, model choice
+  (Sonnet, Opus, Haiku), token count.
+- Uses an Anthropic API key, stored encrypted for the Windows user (or ANTHROPIC_API_KEY).
+- "Ask Claude" on the Logic tab explains the routine on screen.
+- `LogicControl.exe --mcp` serves the same tools to Claude in VS Code or the Claude desktop app,
+  on your Claude plan with no API key; drafts land in a .lcdev file the app opens.
+
 ## 0.2.0 - ladder, writing logic, and an installer
 
 - Logic tab draws ladder: rails, contacts, coils, instruction boxes with named operands, nested

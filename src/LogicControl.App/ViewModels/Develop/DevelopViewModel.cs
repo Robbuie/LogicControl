@@ -434,6 +434,35 @@ public sealed class DevelopViewModel : ObservableObject
             + ".";
     }
 
+    /// <summary>
+    /// The set was changed from outside the editors - by the assistant's draft tools. Rebuilds the
+    /// list, keeps the same item selected if it still exists (by kind and name, because a tool
+    /// replaces a draft with a new object), or selects <paramref name="focus"/>.
+    /// </summary>
+    public void ChangedElsewhere(object? focus, string? message = null)
+    {
+        DraftKind? kind = _selected?.Kind;
+        string? name = _selected?.Name;
+
+        Rebuild(null);
+        IsDirty = true;
+
+        DraftItemViewModel? again = Items.FirstOrDefault(i => i.Kind == kind && Same(i.Name, name));
+        if (focus is not null)
+        {
+            Select(focus);
+        }
+        else if (again is not null)
+        {
+            SelectedItem = again;
+        }
+
+        if (message is not null)
+        {
+            Message = message;
+        }
+    }
+
     public void Select(object draft) =>
         SelectedItem = Items.FirstOrDefault(i => ReferenceEquals(i.Draft, draft))
             ?? (draft is TagDraft ? Items.FirstOrDefault(i => i.Kind == DraftKind.Tags) : null);

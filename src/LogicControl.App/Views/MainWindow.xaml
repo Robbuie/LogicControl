@@ -6,6 +6,7 @@
         xmlns:vm="clr-namespace:LogicControl.App.ViewModels"
         xmlns:views="clr-namespace:LogicControl.App.Views"
         xmlns:dev="clr-namespace:LogicControl.App.ViewModels.Develop"
+        xmlns:asst="clr-namespace:LogicControl.App.ViewModels.Assistant"
         mc:Ignorable="d"
         d:DataContext="{d:DesignInstance Type=vm:MainViewModel}"
         Title="{Binding Title}"
@@ -44,6 +45,7 @@
         <MenuItem Header="Logic as l_adder" IsCheckable="True" IsChecked="{Binding ShowLadder, Mode=TwoWay}" InputGestureText="Ctrl+L" />
         <MenuItem Header="_Findings" Click="OnShowTab" Tag="5" InputGestureText="Ctrl+6" />
         <MenuItem Header="_Develop" Click="OnShowDevelop" InputGestureText="Ctrl+7" />
+        <MenuItem Header="_Claude assistant" IsCheckable="True" IsChecked="{Binding Assistant.IsOpen, Mode=TwoWay}" InputGestureText="Ctrl+Shift+A" />
         <Separator />
         <!-- The same three axes as Redline PDF, the DWG viewer, File Manager and NetControl. -->
         <MenuItem Header="_Appearance..." Click="OnAppearance"
@@ -126,6 +128,32 @@
         </TextBlock>
       </Grid>
 
+      <!-- Claude, at the far right like the chat panel it opens. -->
+      <ToggleButton DockPanel.Dock="Right" IsChecked="{Binding Assistant.IsOpen, Mode=TwoWay}" Margin="10,0,0,0"
+                    ToolTip="Claude assistant (Ctrl+Shift+A)" Height="{DynamicResource tbtn-h}" Padding="10,0" Cursor="Hand">
+        <ToggleButton.Template>
+          <ControlTemplate TargetType="ToggleButton">
+            <Border x:Name="chrome" Background="{DynamicResource bg-2}" BorderBrush="{DynamicResource line}" BorderThickness="1"
+                    CornerRadius="{DynamicResource corner-sm}" Padding="{TemplateBinding Padding}">
+              <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                <TextBlock Style="{StaticResource Glyph}" FontSize="12" Text="&#xE8BD;" Foreground="{DynamicResource accent-on-chrome}" Margin="0,0,6,0" />
+                <TextBlock x:Name="label" Text="Claude" Foreground="{DynamicResource txt-1}" VerticalAlignment="Center" />
+              </StackPanel>
+            </Border>
+            <ControlTemplate.Triggers>
+              <Trigger Property="IsMouseOver" Value="True">
+                <Setter TargetName="chrome" Property="Background" Value="{DynamicResource bg-3}" />
+              </Trigger>
+              <Trigger Property="IsChecked" Value="True">
+                <Setter TargetName="chrome" Property="Background" Value="{DynamicResource accent-soft}" />
+                <Setter TargetName="chrome" Property="BorderBrush" Value="{DynamicResource accent-line}" />
+                <Setter TargetName="label" Property="Foreground" Value="{DynamicResource accent-on-chrome}" />
+              </Trigger>
+            </ControlTemplate.Triggers>
+          </ControlTemplate>
+        </ToggleButton.Template>
+      </ToggleButton>
+
       <!-- What is open, at the far right. -->
       <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Center"
                   Visibility="{Binding HasProject, Converter={StaticResource BoolToVisible}}">
@@ -179,6 +207,8 @@
         <ColumnDefinition Width="{DynamicResource side-w-grid}" MinWidth="200" />
         <ColumnDefinition Width="8" />
         <ColumnDefinition Width="*" MinWidth="480" />
+        <ColumnDefinition x:Name="AssistantSplitterColumn" Width="0" />
+        <ColumnDefinition x:Name="AssistantColumn" Width="0" />
       </Grid.ColumnDefinitions>
 
       <!-- Navigator -->
@@ -458,6 +488,9 @@
           <TabItem Header="Logic">
             <DockPanel Margin="0,8,0,0">
               <DockPanel DockPanel.Dock="Top" Margin="6,0,6,10">
+                <Button DockPanel.Dock="Right" Style="{StaticResource SmallButton}" Content="Ask Claude" Margin="6,0,0,0"
+                        Command="{Binding Assistant.AskCommand}" CommandParameter="Explain the routine I have open: what it does, what drives its outputs, and anything that looks wrong."
+                        VerticalAlignment="Center" ToolTip="Have Claude explain this routine in the assistant panel" />
                 <Button DockPanel.Dock="Right" Style="{StaticResource SmallButton}" Content="Edit a copy" Margin="10,0,0,0"
                         Command="{Binding EditRoutineCopyCommand}" VerticalAlignment="Center"
                         ToolTip="Copy this routine into the Develop tab to change it and export it back to Studio 5000" />
@@ -1166,6 +1199,164 @@
             </Grid>
           </TabItem>
         </TabControl>
+      </Border>
+
+      <!-- ================================================================ Claude -->
+      <!-- The assistant: a chat with Claude that reads the open project through LogicControl's
+           tools and writes drafts into the Develop tab. Docked right like the Claude panel in VS
+           Code; the column's width is set from code-behind when it opens and closes. -->
+      <GridSplitter Grid.Column="3" Style="{StaticResource ColumnSplitter}"
+                    Visibility="{Binding Assistant.IsOpen, Converter={StaticResource BoolToVisible}}" />
+
+      <Border Grid.Column="4" Style="{StaticResource Card}" Padding="0" DataContext="{Binding Assistant}"
+              Visibility="{Binding IsOpen, Converter={StaticResource BoolToVisible}}">
+        <DockPanel>
+          <!-- Header -->
+          <DockPanel DockPanel.Dock="Top" Margin="12,10,8,8">
+            <Button DockPanel.Dock="Right" Style="{StaticResource ToolButton}" Command="{Binding ToggleCommand}" ToolTip="Close (Ctrl+Shift+A)">
+              <TextBlock Style="{StaticResource Glyph}" FontSize="10" Text="&#xE8BB;" />
+            </Button>
+            <Button DockPanel.Dock="Right" Style="{StaticResource ToolButton}" Command="{Binding NewChatCommand}" ToolTip="New chat">
+              <TextBlock Style="{StaticResource Glyph}" FontSize="12" Text="&#xE710;" />
+            </Button>
+            <ComboBox DockPanel.Dock="Right" ItemsSource="{Binding Models}" SelectedItem="{Binding Model, Mode=TwoWay}" Width="170" Margin="0,0,6,0"
+                      ToolTip="Sonnet is quick and cheaper; Opus thinks harder about large or tangled logic; Haiku is cheapest." />
+            <TextBlock Style="{StaticResource PanelHead}" Text="CLAUDE" VerticalAlignment="Center" />
+          </DockPanel>
+
+          <!-- No key yet -->
+          <Border DockPanel.Dock="Top" Margin="12,0,12,10" Padding="12" Background="{DynamicResource bg-1}"
+                  BorderBrush="{DynamicResource line}" BorderThickness="1" CornerRadius="6"
+                  Visibility="{Binding NeedsKey, Converter={StaticResource BoolToVisible}}">
+            <StackPanel>
+              <TextBlock Text="Connect an Anthropic API key" FontWeight="SemiBold" Foreground="{DynamicResource txt-0}" Margin="0,0,0,6" />
+              <TextBlock Style="{StaticResource Muted}" TextWrapping="Wrap" Margin="0,0,0,10"
+                         Text="The assistant talks to Claude through Anthropic's API, billed per use to the key's account - separate from a Claude subscription. The project details it reads are sent to Anthropic to answer. The key is stored encrypted for your Windows account only." />
+              <PasswordBox x:Name="ApiKeyBox" Margin="0,0,0,8" MinHeight="{DynamicResource field-h}" VerticalContentAlignment="Center"
+                           Background="{DynamicResource bg-2}" Foreground="{DynamicResource txt-0}" BorderBrush="{DynamicResource line}"
+                           CaretBrush="{DynamicResource txt-0}" Padding="6,0" />
+              <StackPanel Orientation="Horizontal">
+                <Button Style="{StaticResource PrimaryButton}" Content="Save key" Click="OnSaveApiKey" />
+                <Button Style="{StaticResource SmallButton}" Content="Get a key..." Click="OnGetApiKey" Margin="6,0,0,0" />
+              </StackPanel>
+              <TextBlock x:Name="ApiKeyError" Foreground="{DynamicResource bad}" TextWrapping="Wrap" Margin="0,8,0,0" Visibility="Collapsed" />
+            </StackPanel>
+          </Border>
+
+          <!-- Input -->
+          <Border DockPanel.Dock="Bottom" Margin="10,6,10,10" Padding="8" Background="{DynamicResource bg-1}"
+                  BorderBrush="{DynamicResource line}" BorderThickness="1" CornerRadius="8">
+            <DockPanel>
+              <DockPanel DockPanel.Dock="Bottom" Margin="0,6,0,0">
+                <Button DockPanel.Dock="Right" Style="{StaticResource PrimaryButton}" Content="Send" Command="{Binding SendCommand}" MinWidth="70" Margin="0"
+                        ToolTip="Send (Enter). Shift+Enter for a new line." />
+                <Button DockPanel.Dock="Right" Style="{StaticResource DangerButton}" Content="Stop" Command="{Binding StopCommand}" MinWidth="64" Margin="0,0,6,0"
+                        Visibility="{Binding IsBusy, Converter={StaticResource BoolToVisible}}" />
+                <CheckBox Content="Include what I'm looking at" IsChecked="{Binding IncludeContext}" VerticalAlignment="Center"
+                          ToolTip="Sends the open routine, selected tag or draft by name with the question, so 'this routine' means something." />
+              </DockPanel>
+              <TextBox x:Name="AssistantInput" Style="{StaticResource MultiLineBox}" FontFamily="{DynamicResource font}"
+                       Text="{Binding Input, UpdateSourceTrigger=PropertyChanged}" MinHeight="54" MaxHeight="200"
+                       IsEnabled="{Binding HasKey}" PreviewKeyDown="OnAssistantInputKeyDown"
+                       ToolTip="Ask about the project, or ask for logic: 'add a jam timer to every conveyor'" />
+            </DockPanel>
+          </Border>
+
+          <!-- Status and usage -->
+          <DockPanel DockPanel.Dock="Bottom" Margin="14,0,12,0">
+            <TextBlock DockPanel.Dock="Right" Style="{StaticResource Muted}" Text="{Binding UsageText}" ToolTip="Tokens used in this chat" />
+            <TextBlock Style="{StaticResource Muted}" Text="{Binding Status}" FontStyle="Italic" TextTrimming="CharacterEllipsis" />
+          </DockPanel>
+
+          <!-- The chat -->
+          <Grid>
+            <ScrollViewer x:Name="ChatScroll" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled"
+                          ScrollChanged="OnChatScrollChanged" Padding="12,0,12,6">
+              <ItemsControl ItemsSource="{Binding Items}">
+                <ItemsControl.Resources>
+                  <DataTemplate DataType="{x:Type asst:ChatMessageViewModel}">
+                    <Border x:Name="bubble" Margin="0,4,0,8" Padding="0" CornerRadius="8">
+                      <ItemsControl ItemsSource="{Binding Segments}">
+                        <ItemsControl.ItemTemplate>
+                          <DataTemplate DataType="{x:Type asst:ChatSegment}">
+                            <StackPanel Margin="0,2">
+                              <TextBox Style="{StaticResource ChatText}" Text="{Binding Text, Mode=OneWay}"
+                                       Visibility="{Binding IsText, Converter={StaticResource BoolToVisible}}" />
+                              <Border Background="{DynamicResource bg-1}" BorderBrush="{DynamicResource line-soft}" BorderThickness="1" CornerRadius="5" Padding="8,6"
+                                      Visibility="{Binding IsCode, Converter={StaticResource BoolToVisible}}">
+                                <TextBox Style="{StaticResource ChatText}" FontFamily="{DynamicResource mono}" Text="{Binding Text, Mode=OneWay}" TextWrapping="NoWrap"
+                                         HorizontalScrollBarVisibility="Auto" />
+                              </Border>
+                              <Border Background="{DynamicResource bg-1}" BorderBrush="{DynamicResource line-soft}" BorderThickness="1" CornerRadius="5" Padding="6,6"
+                                      Visibility="{Binding IsRung, Converter={StaticResource BoolToVisible}}">
+                                <StackPanel>
+                                  <TextBox Style="{StaticResource ChatText}" FontFamily="{DynamicResource mono}" Text="{Binding Text, Mode=OneWay}" Margin="2,0,2,4" />
+                                  <views:LadderRungView Style="{StaticResource LadderRung}" Text="{Binding Text}"
+                                                        Shapes="{Binding DataContext.Shapes, RelativeSource={RelativeSource AncestorType=ScrollViewer}}" />
+                                </StackPanel>
+                              </Border>
+                            </StackPanel>
+                          </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                      </ItemsControl>
+                    </Border>
+                    <DataTemplate.Triggers>
+                      <DataTrigger Binding="{Binding IsUser}" Value="True">
+                        <Setter TargetName="bubble" Property="Background" Value="{DynamicResource bg-3}" />
+                        <Setter TargetName="bubble" Property="Padding" Value="10,6" />
+                        <Setter TargetName="bubble" Property="Margin" Value="36,10,0,8" />
+                      </DataTrigger>
+                    </DataTemplate.Triggers>
+                  </DataTemplate>
+
+                  <DataTemplate DataType="{x:Type asst:ToolActivityViewModel}">
+                    <StackPanel Margin="0,1">
+                      <DockPanel>
+                        <ToggleButton DockPanel.Dock="Left" Style="{StaticResource ExpanderToggle}" IsChecked="{Binding IsExpanded}"
+                                      ToolTip="Show what the tool returned" Margin="0,0,4,0" />
+                        <Ellipse DockPanel.Dock="Left" Style="{StaticResource LevelDot}" Margin="0,0,6,0" />
+                        <Button DockPanel.Dock="Right" Style="{StaticResource SmallButton}" Content="Open in Develop" Click="OnShowAssistantDrafts"
+                                Visibility="{Binding IsDraft, Converter={StaticResource BoolToVisible}}" Margin="6,0,0,0" />
+                        <TextBlock Style="{StaticResource Muted}" Text="{Binding Summary}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
+                      </DockPanel>
+                      <TextBox Style="{StaticResource ChatText}" FontFamily="{DynamicResource mono}" Text="{Binding Detail, Mode=OneWay}"
+                               Foreground="{DynamicResource txt-1}" Margin="22,4,0,6" MaxHeight="260" VerticalScrollBarVisibility="Auto"
+                               Visibility="{Binding IsExpanded, Converter={StaticResource BoolToVisible}}" />
+                    </StackPanel>
+                  </DataTemplate>
+
+                  <DataTemplate DataType="{x:Type asst:ChatNoticeViewModel}">
+                    <TextBlock x:Name="notice" Text="{Binding Text}" TextWrapping="Wrap" Margin="0,6" Foreground="{DynamicResource txt-2}" FontStyle="Italic" />
+                    <DataTemplate.Triggers>
+                      <DataTrigger Binding="{Binding IsError}" Value="True">
+                        <Setter TargetName="notice" Property="Foreground" Value="{DynamicResource bad}" />
+                        <Setter TargetName="notice" Property="FontStyle" Value="Normal" />
+                      </DataTrigger>
+                    </DataTemplate.Triggers>
+                  </DataTemplate>
+                </ItemsControl.Resources>
+              </ItemsControl>
+            </ScrollViewer>
+
+            <!-- An empty chat: what to ask. -->
+            <StackPanel VerticalAlignment="Center" Margin="18,0" Visibility="{Binding IsEmpty, Converter={StaticResource BoolToVisible}}">
+              <TextBlock Text="Ask about this project, or ask for logic." FontSize="15" FontWeight="SemiBold" Foreground="{DynamicResource txt-0}"
+                         TextWrapping="Wrap" Margin="0,0,0,6" />
+              <TextBlock Style="{StaticResource Muted}" TextWrapping="Wrap" Margin="0,0,0,14"
+                         Text="Claude reads the open export through LogicControl and writes new or changed logic into the Develop tab as drafts. Nothing reaches a controller - you review, export and import through Studio 5000." />
+              <ItemsControl ItemsSource="{Binding Suggestions}" Visibility="{Binding HasKey, Converter={StaticResource BoolToVisible}}">
+                <ItemsControl.ItemTemplate>
+                  <DataTemplate>
+                    <Button Style="{StaticResource SmallButton}" HorizontalAlignment="Stretch" HorizontalContentAlignment="Left" Margin="0,0,0,6" Padding="10,6"
+                            Command="{Binding DataContext.AskCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}" CommandParameter="{Binding}">
+                      <TextBlock Text="{Binding}" TextWrapping="Wrap" />
+                    </Button>
+                  </DataTemplate>
+                </ItemsControl.ItemTemplate>
+              </ItemsControl>
+            </StackPanel>
+          </Grid>
+        </DockPanel>
       </Border>
     </Grid>
 
