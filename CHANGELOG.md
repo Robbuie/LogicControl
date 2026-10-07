@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.4.2 - easier-to-read answers, a panel that fits
+
+- **Answers are structured.** The Claude panel now draws headings, bullet and numbered lists,
+  bold and `code`, and markdown tables as real tables. Claude is told to lead with the answer, keep
+  paragraphs short, and put lists of tags, modules, rungs or findings in tables.
+- **Rungs are drawn as ladder by default** wherever they appear - in a code block, on a line of
+  their own, after a "Rung 3:" label, or quoted inside a sentence. A comment above a rung becomes
+  its caption (where it is and what it does); its neutral text is one click away to copy. Claude
+  is told to show rungs rather than describe them, old and new side by side for a change.
+- **The panel no longer runs off the right edge.** It shrinks to fit the window (the navigator
+  narrows before the tabs do), and wide rungs and tables scroll sideways inside the chat instead
+  of being cut off. A Copy button under each answer copies it as text.
+
 ## 0.4.1 - Claude on your Claude plan
 
 - **The Claude panel runs on your Claude plan.** It now drives your own Claude Code (signed in

@@ -21,6 +21,13 @@
        on the left and the tabs on the right. -->
 
   <Window.Resources>
+    <!-- A table or rung in the chat scrolls sideways; the wheel still scrolls the chat. -->
+    <Style x:Key="ChatSideScroll" TargetType="ScrollViewer">
+      <Setter Property="HorizontalScrollBarVisibility" Value="Auto" />
+      <Setter Property="VerticalScrollBarVisibility" Value="Disabled" />
+      <EventSetter Event="PreviewMouseWheel" Handler="OnChatSideScrollWheel" />
+    </Style>
+
     <!-- Handed to the shared title bar by the constructor through Chrome.TitleContent - see the
          note in NetControl's MainWindow on why this is not attribute syntax (MC3089). -->
     <Menu x:Key="TitleMenu" Background="Transparent" BorderThickness="0" Padding="0" VerticalAlignment="Center">
@@ -205,11 +212,12 @@
     </Border>
 
     <!-- ================================================================ workspace -->
-    <Grid Grid.Row="2" Margin="2,0,2,8" Visibility="{Binding ShowWorkspace, Converter={StaticResource BoolToVisible}}">
+    <Grid x:Name="Workspace" Grid.Row="2" Margin="2,0,2,8" Visibility="{Binding ShowWorkspace, Converter={StaticResource BoolToVisible}}"
+          SizeChanged="OnWorkspaceSizeChanged">
       <Grid.ColumnDefinitions>
-        <ColumnDefinition Width="{DynamicResource side-w-grid}" MinWidth="200" />
+        <ColumnDefinition x:Name="NavigatorColumn" Width="{DynamicResource side-w-grid}" MinWidth="160" />
         <ColumnDefinition Width="8" />
-        <ColumnDefinition Width="*" MinWidth="480" />
+        <ColumnDefinition Width="*" MinWidth="360" />
         <ColumnDefinition x:Name="AssistantSplitterColumn" Width="0" />
         <ColumnDefinition x:Name="AssistantColumn" Width="0" />
       </Grid.ColumnDefinitions>
@@ -1654,35 +1662,80 @@
                 <ItemsControl.Resources>
                   <DataTemplate DataType="{x:Type asst:ChatMessageViewModel}">
                     <Border x:Name="bubble" Margin="0,4,0,8" Padding="0" CornerRadius="8">
-                      <ItemsControl ItemsSource="{Binding Segments}">
-                        <ItemsControl.ItemTemplate>
-                          <DataTemplate DataType="{x:Type asst:ChatSegment}">
-                            <StackPanel Margin="0,2">
-                              <TextBox Style="{StaticResource ChatText}" Text="{Binding Text, Mode=OneWay}"
-                                       Visibility="{Binding IsText, Converter={StaticResource BoolToVisible}}" />
-                              <Border Background="{DynamicResource bg-1}" BorderBrush="{DynamicResource line-soft}" BorderThickness="1" CornerRadius="5" Padding="8,6"
-                                      Visibility="{Binding IsCode, Converter={StaticResource BoolToVisible}}">
-                                <TextBox Style="{StaticResource ChatText}" FontFamily="{DynamicResource mono}" Text="{Binding Text, Mode=OneWay}" TextWrapping="NoWrap"
-                                         HorizontalScrollBarVisibility="Auto" />
-                              </Border>
-                              <Border Background="{DynamicResource bg-1}" BorderBrush="{DynamicResource line-soft}" BorderThickness="1" CornerRadius="5" Padding="6,6"
-                                      Visibility="{Binding IsRung, Converter={StaticResource BoolToVisible}}">
-                                <StackPanel>
-                                  <TextBox Style="{StaticResource ChatText}" FontFamily="{DynamicResource mono}" Text="{Binding Text, Mode=OneWay}" Margin="2,0,2,4" />
-                                  <views:LadderRungView Style="{StaticResource LadderRung}" Text="{Binding Text}"
-                                                        Shapes="{Binding DataContext.Shapes, RelativeSource={RelativeSource AncestorType=ScrollViewer}}" />
-                                </StackPanel>
-                              </Border>
-                            </StackPanel>
-                          </DataTemplate>
-                        </ItemsControl.ItemTemplate>
-                      </ItemsControl>
+                      <StackPanel>
+                        <ItemsControl ItemsSource="{Binding Segments}">
+                          <ItemsControl.ItemTemplate>
+                            <DataTemplate DataType="{x:Type asst:ChatSegment}">
+                              <StackPanel Margin="0,2">
+                                <!-- A paragraph -->
+                                <views:ChatRichText Runs="{Binding Inlines}" Foreground="{DynamicResource txt-1}" Margin="0,2,0,4"
+                                                    Visibility="{Binding IsText, Converter={StaticResource BoolToVisible}}" />
+
+                                <!-- A heading -->
+                                <views:ChatRichText Runs="{Binding Inlines}" Foreground="{DynamicResource txt-0}" FontWeight="SemiBold" Margin="0,8,0,2"
+                                                    Visibility="{Binding IsHeading, Converter={StaticResource BoolToVisible}}" />
+
+                                <!-- A list item: marker, then the text, indented by level -->
+                                <Grid Margin="{Binding Indent, Converter={StaticResource LeftMargin}}"
+                                      Visibility="{Binding IsBullet, Converter={StaticResource BoolToVisible}}">
+                                  <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="20" />
+                                    <ColumnDefinition Width="*" />
+                                  </Grid.ColumnDefinitions>
+                                  <TextBlock Grid.Column="0" Text="{Binding Marker}" Foreground="{DynamicResource txt-2}" HorizontalAlignment="Right" Margin="0,0,6,0" />
+                                  <views:ChatRichText Grid.Column="1" Runs="{Binding Inlines}" Foreground="{DynamicResource txt-1}" Margin="0,1" />
+                                </Grid>
+
+                                <!-- A table: scrolls sideways when it is wider than the panel -->
+                                <Border Background="{DynamicResource bg-1}" BorderBrush="{DynamicResource line}" BorderThickness="1" CornerRadius="5" Margin="0,4"
+                                        Visibility="{Binding IsTable, Converter={StaticResource BoolToVisible}}">
+                                  <ScrollViewer Style="{StaticResource ChatSideScroll}">
+                                    <views:ChatTable Rows="{Binding Rows}" />
+                                  </ScrollViewer>
+                                </Border>
+
+                                <!-- Code that is not a rung -->
+                                <Border Background="{DynamicResource bg-1}" BorderBrush="{DynamicResource line-soft}" BorderThickness="1" CornerRadius="5" Padding="8,6" Margin="0,4"
+                                        Visibility="{Binding IsCode, Converter={StaticResource BoolToVisible}}">
+                                  <TextBox Style="{StaticResource ChatText}" FontFamily="{DynamicResource mono}" Text="{Binding Text, Mode=OneWay}" TextWrapping="NoWrap"
+                                           HorizontalScrollBarVisibility="Auto" />
+                                </Border>
+
+                                <!-- A rung: drawn as ladder, its caption above, its neutral text a click away -->
+                                <Border Background="{DynamicResource bg-1}" BorderBrush="{DynamicResource line-soft}" BorderThickness="1" CornerRadius="5" Padding="6,4,6,6" Margin="0,4"
+                                        Visibility="{Binding IsRung, Converter={StaticResource BoolToVisible}}">
+                                  <StackPanel>
+                                    <DockPanel Margin="2,0,0,2">
+                                      <ToggleButton x:Name="showText" DockPanel.Dock="Right" Style="{StaticResource ExpanderToggle}"
+                                                    ToolTip="Show the rung as text, to copy into Studio 5000" />
+                                      <TextBlock Text="{Binding Caption}" Style="{StaticResource Muted}" TextWrapping="Wrap" VerticalAlignment="Center"
+                                                 Visibility="{Binding HasCaption, Converter={StaticResource BoolToVisible}}" />
+                                    </DockPanel>
+                                    <ScrollViewer x:Name="rungScroll" Style="{StaticResource ChatSideScroll}">
+                                      <views:LadderRungView Style="{StaticResource LadderRung}" Text="{Binding Text}"
+                                                            Shapes="{Binding DataContext.Assistant.Shapes, RelativeSource={RelativeSource AncestorType=Window}}"
+                                                            ViewportWidth="{Binding ViewportWidth, ElementName=rungScroll}" ViewportInset="4" />
+                                    </ScrollViewer>
+                                    <TextBox Style="{StaticResource ChatText}" FontFamily="{DynamicResource mono}" Text="{Binding Text, Mode=OneWay}" Margin="2,4,2,0"
+                                             Visibility="{Binding IsChecked, ElementName=showText, Converter={StaticResource BoolToVisible}}" />
+                                  </StackPanel>
+                                </Border>
+                              </StackPanel>
+                            </DataTemplate>
+                          </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                        <Button x:Name="copy" Style="{StaticResource SmallButton}" Content="Copy" HorizontalAlignment="Left" Margin="0,2,0,0"
+                                Click="OnCopyChatMessage" ToolTip="Copy this answer as text" Visibility="Collapsed" />
+                      </StackPanel>
                     </Border>
                     <DataTemplate.Triggers>
                       <DataTrigger Binding="{Binding IsUser}" Value="True">
                         <Setter TargetName="bubble" Property="Background" Value="{DynamicResource bg-3}" />
                         <Setter TargetName="bubble" Property="Padding" Value="10,6" />
                         <Setter TargetName="bubble" Property="Margin" Value="36,10,0,8" />
+                      </DataTrigger>
+                      <DataTrigger Binding="{Binding IsUser}" Value="False">
+                        <Setter TargetName="copy" Property="Visibility" Value="Visible" />
                       </DataTrigger>
                     </DataTemplate.Triggers>
                   </DataTemplate>

@@ -359,8 +359,55 @@ public class AssistantTests
         IReadOnlyList<ChatSegment> parts = ChatSegment.Parse(
             "## Fix\nThe **seal-in** is missing:\n```ladder\n[XIC(Start),XIC(Run)]XIO(Stop)OTE(Run);\nnot a rung\n```\nDone.");
 
-        Assert.Equal(new[] { ChatSegmentKind.Text, ChatSegmentKind.Rung, ChatSegmentKind.Code, ChatSegmentKind.Text }, parts.Select(p => p.Kind));
-        Assert.Equal("Fix\nThe seal-in is missing:", parts[0].Text);
-        Assert.Equal("not a rung", parts[2].Text);
+        Assert.Equal(new[] { ChatSegmentKind.Heading, ChatSegmentKind.Text, ChatSegmentKind.Rung, ChatSegmentKind.Code, ChatSegmentKind.Text }, parts.Select(p => p.Kind));
+        Assert.Equal("Fix", parts[0].Text);
+        Assert.Equal("The seal-in is missing:", parts[1].Text);
+        Assert.Equal(new[] { false, true, false }, parts[1].Inlines.Select(i => i.Bold));
+        Assert.Equal("not a rung", parts[3].Text);
     }
+
+    [Fact]
+    public void ListsTablesAndRungsAnywhereAreStructured()
+    {
+        IReadOnlyList<ChatSegment> parts = ChatSegment.Parse("""
+            Two outputs have more than one writer:
+
+            | Tag | Rungs | Note |
+            |-----|:-----:|------|
+            | `Conveyor_Run` | Motors 2, 3 | **double coil** |
+            | Manual_Mode | OldLogic 0 |
+
+            - Rung 3 overrides rung 2, see `XIC(Manual_Mode)OTE(Conveyor_Run);`
+              1. nested step
+            Rung 4: XIC(A)OTE(B);
+
+            ```
+            // MainProgram/Motors rung 3 - manual jog
+            XIC(Manual_Mode)XIO(Line_Running)OTE(Conveyor_Run);
+            XIC(X)OTE(Y);
+            ```
+            """);
+
+        Assert.Equal(
+            new[] { ChatSegmentKind.Text, ChatSegmentKind.Table, ChatSegmentKind.Bullet, ChatSegmentKind.Rung, ChatSegmentKind.Bullet,
+                    ChatSegmentKind.Rung, ChatSegmentKind.Rung, ChatSegmentKind.Rung },
+            parts.Select(p => p.Kind));
+
+        ChatSegment table = parts[1];
+        Assert.Equal(new[] { "Tag", "Rungs", "Note" }, table.Rows[0]);
+        Assert.Equal(new[] { "Conveyor_Run", "Motors 2, 3", "double coil" }, table.Rows[1]);
+        Assert.Equal(new[] { "Manual_Mode", "OldLogic 0", string.Empty }, table.Rows[2]);
+
+        Assert.Equal("•", parts[2].Marker);
+        Assert.Contains(parts[2].Inlines, i => i.Code && i.Text == "XIC(Manual_Mode)OTE(Conveyor_Run);");
+        Assert.Equal("XIC(Manual_Mode)OTE(Conveyor_Run);", parts[3].Text);
+        Assert.Equal("1.", parts[4].Marker);
+        Assert.Equal(1, parts[4].Level);
+
+        Assert.Equal("Rung 4", parts[5].Caption);
+        Assert.Equal("XIC(A)OTE(B);", parts[5].Text);
+        Assert.Equal("MainProgram/Motors rung 3 - manual jog", parts[6].Caption);
+        Assert.Null(parts[7].Caption);
+    }
+
 }

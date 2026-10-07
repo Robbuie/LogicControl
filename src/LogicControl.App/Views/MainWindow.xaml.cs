@@ -254,7 +254,65 @@ public partial class MainWindow : Window
 
         AssistantSplitterColumn.Width = open ? new GridLength(8) : new GridLength(0);
         AssistantColumn.Width = open ? _assistantWidth : new GridLength(0);
-        AssistantColumn.MinWidth = open ? 300 : 0;
+        AssistantColumn.MinWidth = open ? 280 : 0;
+        FitAssistant();
+    }
+
+    /// <summary>Space the tabs keep, however wide the panel is dragged.</summary>
+    private const double TabsMinWidth = 360;
+
+    private void OnWorkspaceSizeChanged(object sender, SizeChangedEventArgs e) => FitAssistant();
+
+    /// <summary>
+    /// Keeps the Claude panel inside the window. Grid columns with minimum widths that add up to
+    /// more than the window are laid out past its right edge - which cut the panel's right side
+    /// off on a smaller screen - so the panel gives way first: it shrinks to what is left after the
+    /// navigator and the tabs, down to a readable minimum, and the navigator narrows below that.
+    /// </summary>
+    private void FitAssistant()
+    {
+        if (AssistantColumn.Width.Value <= 0 || Workspace.ActualWidth <= 0)
+        {
+            return;
+        }
+
+        double room = Workspace.ActualWidth - NavigatorColumn.ActualWidth - 8 - 8 - TabsMinWidth;
+        if (room < AssistantColumn.MinWidth)
+        {
+            NavigatorColumn.Width = new GridLength(Math.Max(NavigatorColumn.MinWidth, NavigatorColumn.ActualWidth - (AssistantColumn.MinWidth - room)));
+            room = Workspace.ActualWidth - NavigatorColumn.MinWidth - 8 - 8 - TabsMinWidth;
+        }
+
+        double fit = Math.Max(AssistantColumn.MinWidth, room);
+        if (AssistantColumn.ActualWidth > fit + 0.5 || AssistantColumn.Width.Value > fit + 0.5)
+        {
+            AssistantColumn.Width = new GridLength(fit);
+        }
+
+        AssistantColumn.MaxWidth = Math.Max(AssistantColumn.MinWidth, Workspace.ActualWidth - NavigatorColumn.MinWidth - 8 - 8 - TabsMinWidth);
+    }
+
+    /// <summary>Hands the wheel from a sideways-scrolling table or rung to the chat around it.</summary>
+    private void OnChatSideScrollWheel(object sender, MouseWheelEventArgs e)
+    {
+        e.Handled = true;
+        ChatScroll.ScrollToVerticalOffset(ChatScroll.VerticalOffset - e.Delta);
+    }
+
+    /// <summary>Copies an answer as the text Claude wrote - tables and rungs included.</summary>
+    private void OnCopyChatMessage(object sender, RoutedEventArgs e)
+    {
+        if (sender is FrameworkElement { DataContext: ViewModels.Assistant.ChatMessageViewModel message })
+        {
+            try
+            {
+                Clipboard.SetText(message.Text);
+            }
+            catch (System.Runtime.InteropServices.COMException)
+            {
+                // The clipboard is held by another program; trying again is the user's call.
+            }
+        }
     }
 
     /// <summary>Enter sends, Shift+Enter is a new line - the chat convention.</summary>

@@ -815,18 +815,51 @@ public sealed class ToolActivityViewModel(string id, string name, string summary
     }
 }
 
+/// <summary>A piece of a line of prose: plain, **bold**, or `code`.</summary>
+public sealed record ChatInline(string Text, bool Bold = false, bool Code = false);
+
 /// <summary>
-/// A run of a chat message: prose, a code block, or a rung. Markdown is kept to what an answer here
-/// uses - paragraphs, lists, **bold** and fenced code - and a code line that parses as a rung
-/// becomes a <see cref="ChatSegmentKind.Rung"/>, which the panel draws as ladder.
+/// A block of a chat message, from the light markdown the assistant writes: a paragraph, a heading,
+/// a list item, a table, a code block, or a rung - which the panel draws as ladder.
+///
+/// <para>Rungs are found wherever they are written: a line of a fenced block, a bare line, a
+/// "Rung 3: XIC(...)...;" line, or a `rung` in backticks inside a sentence (drawn under it). A
+/// comment line just above a rung in a block (<c>// MainProgram/Motors rung 3 - jog</c>) becomes
+/// its caption.</para>
 /// </summary>
 public sealed record ChatSegment(ChatSegmentKind Kind, string Text)
 {
     public bool IsText => Kind == ChatSegmentKind.Text;
 
+    public bool IsHeading => Kind == ChatSegmentKind.Heading;
+
+    public bool IsBullet => Kind == ChatSegmentKind.Bullet;
+
+    public bool IsTable => Kind == ChatSegmentKind.Table;
+
     public bool IsCode => Kind == ChatSegmentKind.Code;
 
     public bool IsRung => Kind == ChatSegmentKind.Rung;
+
+    /// <summary>Text, headings and list items: the line with its bold and code spans.</summary>
+    public IReadOnlyList<ChatInline> Inlines { get; init; } = [];
+
+    /// <summary>A list item's marker: "•" or "1.".</summary>
+    public string Marker { get; init; } = string.Empty;
+
+    /// <summary>A list item's nesting, 0 for the outer list.</summary>
+    public int Level { get; init; }
+
+    /// <summary>A table: the header row first, then the body.</summary>
+    public IReadOnlyList<IReadOnlyList<string>> Rows { get; init; } = [];
+
+    /// <summary>A rung's caption - where it is and what it does - when the answer gave one.</summary>
+    public string? Caption { get; init; }
+
+    public bool HasCaption => !string.IsNullOrWhiteSpace(Caption);
+
+    /// <summary>The left margin a list item is drawn at.</summary>
+    public double Indent => Level * 16;
 
     public static IReadOnlyList<ChatSegment> Parse(string text)
     {
@@ -839,47 +872,116 @@ public sealed record ChatSegment(ChatSegmentKind Kind, string Text)
         string[] parts = text.Replace("\r\n", "\n", StringComparison.Ordinal).Split("```");
         for (int i = 0; i < parts.Length; i++)
         {
-            string part = parts[i];
             if (i % 2 == 0)
             {
-                string prose = Prose(part);
-                if (prose.Length > 0)
-                {
-                    segments.Add(new ChatSegment(ChatSegmentKind.Text, prose));
-                }
-
-                continue;
+                ParseProse(parts[i], segments);
             }
-
-            // A fence: drop the language tag on its first line, then split rungs from other code.
-            int newline = part.IndexOf('\n', StringComparison.Ordinal);
-            string body = newline >= 0 && !part[..newline].Contains('(', StringComparison.Ordinal) ? part[(newline + 1)..] : part;
-            var code = new StringBuilder();
-
-            foreach (string raw in body.Split('\n'))
+            else
             {
-                string line = raw.TrimEnd();
-                if (LooksLikeRung(line))
-                {
-                    Flush(segments, code);
-                    segments.Add(new ChatSegment(ChatSegmentKind.Rung, line.Trim()));
-                }
-                else if (line.Length > 0 || code.Length > 0)
-                {
-                    code.AppendLine(line);
-                }
+                ParseFence(parts[i], segments);
             }
-
-            Flush(segments, code);
         }
 
         return segments;
     }
 
-    private static bool LooksLikeRung(string line)
+    // ------------------------------------------------------------------ fenced blocks
+
+    private static void ParseFence(string part, List<ChatSegment> segments)
+    {
+        // Drop the language tag on the first line, then split rungs from other code.
+        int newline = part.IndexOf('\n', StringComparison.Ordinal);
+        string body = newline >= 0 && !part[..newline].Contains('(', StringComparison.Ordinal) ? part[(newline + 1)..] : part;
+        var code = new StringBuilder();
+        string? caption = null;
+
+        foreach (string raw in body.Split('\n'))
+        {
+            string line = raw.TrimEnd();
+            if (RungOf(line, out string? labelled) is { } rung)
+            {
+                Flush(segments, code);
+                segments.Add(new ChatSegment(ChatSegmentKind.Rung, rung) { Caption = labelled ?? caption });
+                caption = null;
+            }
+            else if (CommentOf(line) is { } comment)
+            {
+                // A comment right above a rung captions it; anywhere else it is code.
+                if (caption is not null)
+                {
+                    code.AppendLine("// " + caption);
+                }
+
+                caption = comment;
+            }
+            else
+            {
+                if (caption is not null)
+                {
+                    code.AppendLine("// " + caption);
+                    caption = null;
+                }
+
+                if (line.Length > 0 || code.Length > 0)
+                {
+                    code.AppendLine(line);
+                }
+            }
+        }
+
+        if (caption is not null)
+        {
+            code.AppendLine("// " + caption);
+        }
+
+        Flush(segments, code);
+    }
+
+    private static string? CommentOf(string line)
     {
         string t = line.Trim();
-        if (!t.EndsWith(';') || t.Length < 4)
+        if (t.StartsWith("//", StringComparison.Ordinal))
+        {
+            return t[2..].Trim();
+        }
+
+        return t.StartsWith("(*", StringComparison.Ordinal) && t.EndsWith("*)", StringComparison.Ordinal) && t.Length > 4
+            ? t[2..^2].Trim()
+            : null;
+    }
+
+    /// <summary>
+    /// The rung a line holds, or null: the whole line, or what follows a "Rung 3:" or "3:" label
+    /// (returned as the caption).
+    /// </summary>
+    private static string? RungOf(string line, out string? label)
+    {
+        label = null;
+        string t = line.Trim().TrimStart('-', '*', ' ');
+        if (LooksLikeRung(t))
+        {
+            return t;
+        }
+
+        int colon = t.IndexOf(':', StringComparison.Ordinal);
+        if (colon > 0 && colon < 40)
+        {
+            string head = t[..colon].Trim();
+            string rest = t[(colon + 1)..].Trim().Trim('`');
+            bool isLabel = head.Length > 0 && !head.Contains('(', StringComparison.Ordinal) && !head.Contains('[', StringComparison.Ordinal);
+            if (isLabel && LooksLikeRung(rest))
+            {
+                label = head;
+                return rest;
+            }
+        }
+
+        return null;
+    }
+
+    private static bool LooksLikeRung(string t)
+    {
+        if (!t.EndsWith(';') || t.Length < 4 || !t.Contains('(', StringComparison.Ordinal))
         {
             return false;
         }
@@ -899,38 +1001,195 @@ public sealed record ChatSegment(ChatSegmentKind Kind, string Text)
         code.Clear();
     }
 
-    /// <summary>Plain text from light markdown: headings lose their #, bold loses its asterisks, inline code its backticks.</summary>
-    private static string Prose(string s)
+    // ------------------------------------------------------------------ prose
+
+    private static void ParseProse(string prose, List<ChatSegment> segments)
     {
-        var lines = s.Split('\n').Select(l =>
+        string[] lines = prose.Split('\n');
+        var paragraph = new List<string>();
+
+        void EndParagraph()
         {
-            string t = l.TrimEnd();
-            int hashes = 0;
-            while (hashes < t.Length && t[hashes] == '#')
+            if (paragraph.Count > 0)
             {
-                hashes++;
+                string joined = string.Join(" ", paragraph.Select(l => l.Trim()));
+                AddText(segments, ChatSegmentKind.Text, joined);
+                paragraph.Clear();
+            }
+        }
+
+        for (int i = 0; i < lines.Length; i++)
+        {
+            string line = lines[i].TrimEnd();
+            string t = line.Trim();
+
+            if (t.Length == 0)
+            {
+                EndParagraph();
+                continue;
             }
 
+            // A table: a | row, then a |---| separator.
+            if (t.StartsWith('|') && i + 1 < lines.Length && IsSeparator(lines[i + 1]))
+            {
+                EndParagraph();
+                var rows = new List<IReadOnlyList<string>> { Cells(t) };
+                i += 2;
+                while (i < lines.Length && lines[i].Trim().StartsWith('|'))
+                {
+                    rows.Add(Cells(lines[i].Trim()));
+                    i++;
+                }
+
+                i--;
+                int width = rows.Max(r => r.Count);
+                rows = rows.Select(r => (IReadOnlyList<string>)r.Concat(Enumerable.Repeat(string.Empty, width - r.Count)).ToList()).ToList();
+                segments.Add(new ChatSegment(ChatSegmentKind.Table, string.Join("\n", rows.Select(r => string.Join(" | ", r)))) { Rows = rows });
+                continue;
+            }
+
+            // A rung on a line of its own, with or without a label.
+            if (RungOf(t.Trim('`'), out string? label) is { } bare)
+            {
+                EndParagraph();
+                segments.Add(new ChatSegment(ChatSegmentKind.Rung, bare) { Caption = label });
+                continue;
+            }
+
+            int hashes = t.TakeWhile(c => c == '#').Count();
             if (hashes is > 0 and < 7 && hashes < t.Length && t[hashes] == ' ')
             {
-                t = t[(hashes + 1)..];
+                EndParagraph();
+                AddText(segments, ChatSegmentKind.Heading, t[(hashes + 1)..].Trim());
+                continue;
             }
 
-            if (t.StartsWith("* ", StringComparison.Ordinal))
+            if (ListItem(line) is { } item)
             {
-                t = "- " + t[2..];
+                EndParagraph();
+                AddText(segments, ChatSegmentKind.Bullet, item.Text, item.Marker, item.Level);
+                continue;
             }
 
-            return t.Replace("**", string.Empty, StringComparison.Ordinal).Replace("`", string.Empty, StringComparison.Ordinal);
-        });
+            if (t is "---" or "***" or "___")
+            {
+                EndParagraph();
+                continue;
+            }
 
-        return string.Join('\n', lines).Trim('\n');
+            paragraph.Add(t);
+        }
+
+        EndParagraph();
+    }
+
+    /// <summary>Adds a line of prose, then draws any `rung` it quotes underneath it.</summary>
+    private static void AddText(List<ChatSegment> segments, ChatSegmentKind kind, string text, string marker = "", int level = 0)
+    {
+        IReadOnlyList<ChatInline> inlines = Inline(text);
+        segments.Add(new ChatSegment(kind, string.Concat(inlines.Select(x => x.Text))) { Inlines = inlines, Marker = marker, Level = level });
+
+        foreach (ChatInline code in inlines.Where(x => x.Code && LooksLikeRung(x.Text.Trim())))
+        {
+            segments.Add(new ChatSegment(ChatSegmentKind.Rung, code.Text.Trim()) { Level = level });
+        }
+    }
+
+    private static (string Text, string Marker, int Level)? ListItem(string line)
+    {
+        int spaces = line.TakeWhile(c => c == ' ').Count();
+        string t = line.TrimStart();
+        int level = Math.Min(3, spaces / 2);
+
+        if (t.Length > 2 && (t[0] is '-' or '*' or '+') && t[1] == ' ')
+        {
+            return (t[2..].Trim(), "•", level);
+        }
+
+        int digits = t.TakeWhile(char.IsAsciiDigit).Count();
+        if (digits is > 0 and < 4 && t.Length > digits + 2 && (t[digits] is '.' or ')') && t[digits + 1] == ' ')
+        {
+            return (t[(digits + 2)..].Trim(), t[..digits] + ".", level);
+        }
+
+        return null;
+    }
+
+    private static bool IsSeparator(string line)
+    {
+        string t = line.Trim();
+        return t.StartsWith('|') && t.Contains('-', StringComparison.Ordinal) && t.All(c => c is '|' or '-' or ':' or ' ');
+    }
+
+    private static List<string> Cells(string row)
+    {
+        string t = row.Trim();
+        if (t.StartsWith('|'))
+        {
+            t = t[1..];
+        }
+
+        if (t.EndsWith('|'))
+        {
+            t = t[..^1];
+        }
+
+        return t.Split('|').Select(c => string.Concat(Inline(c.Trim()).Select(x => x.Text))).ToList();
+    }
+
+    /// <summary>Splits a line into plain, **bold** and `code` runs; other markdown marks are dropped.</summary>
+    internal static IReadOnlyList<ChatInline> Inline(string text)
+    {
+        var runs = new List<ChatInline>();
+        var current = new StringBuilder();
+        bool bold = false;
+
+        void Emit(bool asCode = false)
+        {
+            if (current.Length > 0)
+            {
+                runs.Add(new ChatInline(current.ToString(), bold && !asCode, asCode));
+                current.Clear();
+            }
+        }
+
+        for (int i = 0; i < text.Length; i++)
+        {
+            if (text[i] == '`')
+            {
+                int close = text.IndexOf('`', i + 1);
+                if (close > i)
+                {
+                    Emit();
+                    current.Append(text, i + 1, close - i - 1);
+                    Emit(asCode: true);
+                    i = close;
+                    continue;
+                }
+            }
+
+            if (i + 1 < text.Length && text[i] == '*' && text[i + 1] == '*')
+            {
+                Emit();
+                bold = !bold;
+                i++;
+                continue;
+            }
+
+            current.Append(text[i]);
+        }
+
+        Emit();
+        return runs;
     }
 }
 
 public enum ChatSegmentKind
 {
     Text,
+    Heading,
+    Bullet,
+    Table,
     Code,
     Rung,
 }

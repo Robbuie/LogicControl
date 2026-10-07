@@ -23,3 +23,13 @@ public sealed class NullToVisibilityConverter : IValueConverter
     public object ConvertBack(object? value, Type targetType, object? parameter, CultureInfo culture) =>
         throw new NotSupportedException("One way only.");
 }
+
+/// <summary>A number of pixels as a left margin - how far a nested list item is indented.</summary>
+public sealed class LeftMarginConverter : System.Windows.Data.IValueConverter
+{
+    public object Convert(object value, Type targetType, object parameter, System.Globalization.CultureInfo culture) =>
+        new System.Windows.Thickness(value is double d ? d : 0, 0, 0, 0);
+
+    public object ConvertBack(object value, Type targetType, object parameter, System.Globalization.CultureInfo culture) =>
+        throw new NotSupportedException();
+}

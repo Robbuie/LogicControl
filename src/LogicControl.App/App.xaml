@@ -17,6 +17,7 @@
       <views:NullToVisibilityConverter x:Key="NotNullToVisible" />
       <views:NullToVisibilityConverter x:Key="NullToVisible" Invert="True" />
       <BooleanToVisibilityConverter x:Key="BoolToVisible" />
+      <views:LeftMarginConverter x:Key="LeftMargin" />
 
     </ResourceDictionary>
   </Application.Resources>
