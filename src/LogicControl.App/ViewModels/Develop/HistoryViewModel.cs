@@ -32,6 +32,7 @@ public sealed class HistoryViewModel : ObservableObject
     private RevisionRowViewModel? _selected;
     private IReadOnlyList<ItemChangeViewModel> _changes = [];
     private string _caption = string.Empty;
+    private bool _showLadder = true;
 
     public HistoryViewModel(DevelopViewModel owner, HistoryMode mode)
     {
@@ -125,6 +126,26 @@ public sealed class HistoryViewModel : ObservableObject
 
     public bool HasProject => _owner.Project is not null;
 
+    /// <summary>Rungs in the changes drawn as ladder (the default), or listed as neutral text.</summary>
+    public bool ShowLadder
+    {
+        get => _showLadder;
+        set
+        {
+            if (SetProperty(ref _showLadder, value))
+            {
+                OnPropertyChanged(nameof(ShowText));
+                Compare();
+            }
+        }
+    }
+
+    public bool ShowText
+    {
+        get => !_showLadder;
+        set => ShowLadder = !value;
+    }
+
     /// <summary>What the right-hand side is showing, in words.</summary>
     public string Caption
     {
@@ -217,7 +238,7 @@ public sealed class HistoryViewModel : ObservableObject
                 : $"What revision {_selected.Number.ToString(CultureInfo.InvariantCulture)} changed: {_selected.Label}.";
         }
 
-        Changes = changes.Items.Select(i => new ItemChangeViewModel(i, Exists(i))).ToList();
+        Changes = changes.Items.Select(i => new ItemChangeViewModel(i, Exists(i), _showLadder, _owner.Shapes)).ToList();
     }
 
     private bool Exists(ItemChange change) => _owner.Items.Any(i => i.Draft is not List<TagDraft> && Matches(i, change))
@@ -300,7 +321,7 @@ public sealed class RevisionRowViewModel(RevisionRecord record, bool isLatest)
 }
 
 /// <summary>One changed draft, with its lines.</summary>
-public sealed class ItemChangeViewModel(ItemChange change, bool canOpen)
+public sealed class ItemChangeViewModel(ItemChange change, bool canOpen, bool drawRungs = false, Func<string, LogicControl.Core.Logic.InstructionShape?>? shapes = null)
 {
     public ItemChange Change { get; } = change;
 
@@ -317,8 +338,55 @@ public sealed class ItemChangeViewModel(ItemChange change, bool canOpen)
 
     public string Summary => Change.Summary;
 
-    public IReadOnlyList<DiffLine> Lines => Change.Lines;
+    public IReadOnlyList<DiffLineViewModel> Lines { get; } =
+        change.Lines.Select(l => new DiffLineViewModel(l, drawRungs && l.IsRung, shapes)).ToList();
 
     /// <summary>The draft still exists, so the title can open it.</summary>
     public bool CanOpen { get; } = canOpen;
+}
+
+/// <summary>
+/// A line of a change: text, or - for a rung when the view is drawing ladder - the rung drawn,
+/// with a bar and a label saying whether it was added, removed or is unchanged context.
+/// </summary>
+public sealed class DiffLineViewModel(DiffLine line, bool drawn, Func<string, LogicControl.Core.Logic.InstructionShape?>? shapes)
+{
+    public DiffLine Line { get; } = line;
+
+    public DiffLineKind Kind => Line.Kind;
+
+    public string Text => Line.Text;
+
+    /// <summary>Drawn as ladder rather than printed.</summary>
+    public bool IsDrawn { get; } = drawn;
+
+    public bool IsPrinted => !IsDrawn;
+
+    public string? Rung => Line.Rung;
+
+    /// <summary>"+ Rung 3 after", "- Rung 3 before", "Rung 4" - the drawn rung's heading.</summary>
+    public string Label => (Kind switch
+    {
+        DiffLineKind.Added => "+ ",
+        DiffLineKind.Removed => "- ",
+        _ => string.Empty,
+    }) + (Line.RungLabel ?? string.Empty);
+
+    public string Comment => Line.RungComment ?? string.Empty;
+
+    public bool HasComment => !string.IsNullOrWhiteSpace(Line.RungComment);
+
+    /// <summary>The change bar's kind, as the Logic tab uses it: Added, Removed, or empty for context.</summary>
+    public string Change => Kind switch
+    {
+        DiffLineKind.Added => "Added",
+        DiffLineKind.Removed => "Removed",
+        _ => string.Empty,
+    };
+
+    public bool IsRemoved => Kind == DiffLineKind.Removed;
+
+    public bool IsHighlighted => false;
+
+    public Func<string, LogicControl.Core.Logic.InstructionShape?>? Shapes { get; } = shapes;
 }

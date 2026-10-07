@@ -25,7 +25,23 @@ public enum DiffLineKind
     Context,
 }
 
-public sealed record DiffLine(DiffLineKind Kind, string Text);
+/// <summary>
+/// One line of a change's detail. A line about a rung also carries the rung itself
+/// (<see cref="Rung"/>), its label ("Rung 3") and its comment, so a view can draw it as ladder
+/// instead of printing it.
+/// </summary>
+public sealed record DiffLine(DiffLineKind Kind, string Text)
+{
+    /// <summary>The rung's neutral text when this line is a rung; null for anything else.</summary>
+    public string? Rung { get; init; }
+
+    /// <summary>"Rung 3" - which rung, in the version the line belongs to.</summary>
+    public string? RungLabel { get; init; }
+
+    public string? RungComment { get; init; }
+
+    public bool IsRung => Rung is not null;
+}
 
 /// <summary>
 /// One draft that is different: what it is, what happened to it, and the detail - rung by rung,

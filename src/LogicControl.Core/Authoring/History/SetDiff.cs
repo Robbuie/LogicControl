@@ -210,12 +210,12 @@ public static class SetDiff
                 case LineChange.Added:
                     addedCount++;
                     touched.Add(a);
-                    body.Add(new DiffLine(DiffLineKind.Added, $"+ Rung {N(a)}  {Comment(after[a].Comment)}{after[a].Text}"));
+                    body.Add(new DiffLine(DiffLineKind.Added, $"+ Rung {N(a)}  {Comment(after[a].Comment)}{after[a].Text}") { Rung = after[a].Text, RungLabel = $"Rung {N(a)}", RungComment = after[a].Comment });
                     break;
 
                 case LineChange.Removed:
                     removedCount++;
-                    body.Add(new DiffLine(DiffLineKind.Removed, $"- Rung {N(b)}  {Comment(before[b].Comment)}{before[b].Text}"));
+                    body.Add(new DiffLine(DiffLineKind.Removed, $"- Rung {N(b)}  {Comment(before[b].Comment)}{before[b].Text}") { Rung = before[b].Text, RungLabel = $"Rung {N(b)}", RungComment = before[b].Comment });
                     break;
 
                 default:
@@ -223,12 +223,12 @@ public static class SetDiff
                     {
                         changed++;
                         touched.Add(a);
-                        body.Add(new DiffLine(DiffLineKind.Removed, $"- Rung {N(b)}  {before[b].Text}"));
-                        body.Add(new DiffLine(DiffLineKind.Added, $"+ Rung {N(a)}  {after[a].Text}"));
+                        body.Add(new DiffLine(DiffLineKind.Removed, $"- Rung {N(b)}  {before[b].Text}") { Rung = before[b].Text, RungLabel = $"Rung {N(b)} before", RungComment = before[b].Comment });
+                        body.Add(new DiffLine(DiffLineKind.Added, $"+ Rung {N(a)}  {after[a].Text}") { Rung = after[a].Text, RungLabel = $"Rung {N(a)} after", RungComment = after[a].Comment });
                     }
                     else
                     {
-                        body.Add(new DiffLine(DiffLineKind.Context, $"  Rung {N(a)}  {after[a].Text}"));
+                        body.Add(new DiffLine(DiffLineKind.Context, $"  Rung {N(a)}  {after[a].Text}") { Rung = after[a].Text, RungLabel = $"Rung {N(a)}", RungComment = after[a].Comment });
                     }
 
                     if (!SameComment(before[b].Comment, after[a].Comment))

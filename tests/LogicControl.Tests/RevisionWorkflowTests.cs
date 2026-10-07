@@ -159,6 +159,18 @@ public class RevisionWorkflowTests
         Assert.Equal("Routine MainProgram/Motors", change.Title);
         Assert.Contains(change.Lines, l => l.Kind == DiffLineKind.Added && l.Text.Contains("E_Stop_OK", StringComparison.Ordinal));
 
+        // Rungs are drawn as ladder by default: the old one and the new one, labelled.
+        Assert.True(history.ShowLadder);
+        DiffLineViewModel drawn = Assert.Single(change.Lines, l => l.IsDrawn && l.Kind == DiffLineKind.Added);
+        Assert.Equal("XIC(Line_Running)XIC(E_Stop_OK)OTE(Conveyor_Run);", drawn.Rung);
+        Assert.Equal("+ Rung 2 after", drawn.Label);
+        Assert.Equal("Added", drawn.Change);
+        Assert.Contains(change.Lines, l => l.IsDrawn && l.Kind == DiffLineKind.Removed && l.Label == "- Rung 2 before");
+        Assert.All(change.Lines.Where(l => l.Kind == DiffLineKind.Heading), l => Assert.False(l.IsDrawn));
+        history.ShowText = true;
+        Assert.DoesNotContain(Assert.Single(history.Changes).Lines, l => l.IsDrawn);
+        history.ShowLadder = true;
+
         // Against the project: the same routine, one rung changed.
         history.Mode = HistoryMode.Project;
         Assert.Equal("1 rung changed", Assert.Single(history.Changes).Summary);

@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.4.3 - changes drawn as ladder
+
+- **History and Changes vs project draw rungs as ladder.** Each changed rung is drawn with its
+  label (Rung 3 before / Rung 3 after), its comment, and a green or red bar for added or removed;
+  unchanged rungs around a change are drawn for context. Ladder / Text switches back to the
+  neutral-text listing. Data type members, tags and settings stay as text.
+
 ## 0.4.2 - easier-to-read answers, a panel that fits
 
 - **Answers are structured.** The Claude panel now draws headings, bullet and numbered lists,

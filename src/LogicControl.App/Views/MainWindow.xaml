@@ -1117,6 +1117,12 @@
                         <Button DockPanel.Dock="Right" Style="{StaticResource PrimaryButton}" Content="Go back to this revision"
                                 Command="{Binding RevertCommand}" VerticalAlignment="Center"
                                 ToolTip="Put every draft back as it was after the selected revision. The revert is recorded too, so it can be undone." />
+                        <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Center" Margin="0,0,10,0">
+                          <RadioButton Style="{StaticResource SegmentToggle}" Tag="first" Content="Ladder" GroupName="HistoryDraw"
+                                       IsChecked="{Binding ShowLadder, Mode=TwoWay}" ToolTip="Draw changed rungs as ladder" />
+                          <RadioButton Style="{StaticResource SegmentToggle}" Tag="last" Content="Text" GroupName="HistoryDraw"
+                                       IsChecked="{Binding ShowText, Mode=TwoWay}" ToolTip="List changed rungs as neutral text" />
+                        </StackPanel>
                         <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
                           <RadioButton Style="{StaticResource SegmentToggle}" Tag="first" Content="This step" GroupName="HistoryMode"
                                        IsChecked="{Binding IsStep, Mode=TwoWay}" ToolTip="What the selected revision changed" />
@@ -1146,8 +1152,34 @@
                                   </StackPanel>
                                   <ItemsControl ItemsSource="{Binding Lines}" Margin="0,6,0,0">
                                     <ItemsControl.ItemTemplate>
-                                      <DataTemplate>
-                                        <TextBlock Style="{StaticResource DiffLineText}" Text="{Binding Text}" />
+                                      <DataTemplate DataType="{x:Type dev:DiffLineViewModel}">
+                                        <StackPanel>
+                                          <TextBlock Style="{StaticResource DiffLineText}" Text="{Binding Text}"
+                                                     Visibility="{Binding IsPrinted, Converter={StaticResource BoolToVisible}}" />
+
+                                          <!-- A rung drawn as ladder: a coloured bar for added or removed, its label and comment above -->
+                                          <Border Style="{StaticResource LogicLineRow}" Padding="0,4"
+                                                  Visibility="{Binding IsDrawn, Converter={StaticResource BoolToVisible}}">
+                                            <Grid>
+                                              <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="8" />
+                                                <ColumnDefinition Width="*" />
+                                              </Grid.ColumnDefinitions>
+                                              <Border Grid.Column="0" Style="{StaticResource ChangeBar}" />
+                                              <StackPanel Grid.Column="1">
+                                                <TextBlock Margin="2,0,0,2">
+                                                  <Run Text="{Binding Label, Mode=OneWay}" FontWeight="SemiBold" Foreground="{DynamicResource txt-1}" /><Run
+                                                       Text="   " /><Run Text="{Binding Comment, Mode=OneWay}" FontStyle="Italic" Foreground="{DynamicResource good}" />
+                                                </TextBlock>
+                                                <ScrollViewer x:Name="diffRungScroll" HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Disabled">
+                                                  <views:LadderRungView Style="{StaticResource LadderRung}" Text="{Binding Rung}" Shapes="{Binding Shapes}"
+                                                                        ViewportWidth="{Binding ViewportWidth, ElementName=diffRungScroll}" ViewportInset="4"
+                                                                        ToolTip="{Binding Rung}" />
+                                                </ScrollViewer>
+                                              </StackPanel>
+                                            </Grid>
+                                          </Border>
+                                        </StackPanel>
                                       </DataTemplate>
                                     </ItemsControl.ItemTemplate>
                                   </ItemsControl>
