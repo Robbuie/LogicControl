@@ -29,6 +29,7 @@ public sealed class MainViewModel : ObservableObject
     public const int LogicTab = 5;
     public const int FindingsTab = 6;
     public const int DevelopTab = 7;
+    public const int CompareTab = 8;
 
     private ProjectAnalysis? _analysis;
     private string? _filePath;
@@ -62,6 +63,7 @@ public sealed class MainViewModel : ObservableObject
         AssistantBackend? backend = null, ClaudeCodeEnvironment? claudeCode = null)
     {
         SystemView = new SystemViewModel(this);
+        Compare = new CompareViewModel(this);
         Assistant = new AssistantViewModel(this, keys ?? new MemoryKeyStore(), handler, model, backend, claudeCode);
         Assistant.PropertyChanged += (_, e) =>
         {
@@ -127,6 +129,9 @@ public sealed class MainViewModel : ObservableObject
 
     /// <summary>The System tab: the controller drawn as a system, and the plant when more are added.</summary>
     public SystemViewModel SystemView { get; }
+
+    /// <summary>The Compare tab: the open project against another export.</summary>
+    public CompareViewModel Compare { get; }
 
     /// <summary>The Develop tab: drafts, their editors, checks and exports.</summary>
     public DevelopViewModel Develop { get; } = new();
@@ -505,6 +510,7 @@ public sealed class MainViewModel : ObservableObject
 
         ApplyFilter();
         SystemView.Rebuild();
+        Compare.Refresh();
         RaiseAll();
     }
 

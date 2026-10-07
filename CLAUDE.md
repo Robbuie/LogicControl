@@ -44,7 +44,8 @@ src/LogicControl.Core/        engine - MUST NOT reference any UI assembly
                               (write into a whole-project copy), LogicTemplates, DeclarationText,
                               DraftsFromProject (project -> drafts, the "before" of a comparison)
     Authoring/History/        RevisionHistory (snapshots in the .lcdev), SetDiff, LineDiff,
-                              RungComparison
+                              RungComparison, ProjectComparison (two exports - the Compare tab and
+                              Claude's compare_* tools)
     Analysis/                 cross-reference, hardware tree, comms map, findings, ProjectAnalysis,
                               PlantModel + PlantLayout (several projects joined; the System tab)
     Assistant/                LogicTools (the AI's tool table), ClaudeClient (Messages API, SSE),
@@ -113,7 +114,7 @@ installer/                    Inno Setup script; tools/publish.ps1 builds exe + 
 ## Status
 
 0.4.0. The engine, view models, updater and assistant are tested on Linux (.NET 10.0.112) with an
-offline xunit stand-in: 250 tests pass. The whole app, XAML included, compiles on Linux with 0
+offline xunit stand-in: 257 tests pass. The whole app, XAML included, compiles on Linux with 0
 warnings when pointed at the WindowsDesktop assemblies copied from a Windows machine (no NuGet:
 `DisableImplicitFrameworkReferences` plus `<Reference>`s to the NETCore ref pack and the WPF dlls,
 `EnableWindowsTargeting`, `UseAppHost=false`) - bindings and resources are only checked at run

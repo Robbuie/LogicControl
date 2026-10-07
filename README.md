@@ -20,6 +20,14 @@ back as L5X for Studio 5000 to import.
   them, unscheduled programs, uncalled routines, undeclared tags and more. Click a finding's rung
   to open it.
 
+**Comparing** (the Compare tab)
+
+- The open project against another export - a backup, another line, a contractor's version: every
+  difference in data types, Add-Ons, modules, tasks, programs, routines and tags, rungs drawn as
+  ladder. Any two routines can be compared, even with different names.
+- Take the other version of anything into the Develop tab as a draft, or have Claude review the
+  differences and draft a merge.
+
 **Writing** (the Develop tab)
 
 - Draft **data types**, **Add-On Instructions**, **programs**, **ladder routines** and **tags** -

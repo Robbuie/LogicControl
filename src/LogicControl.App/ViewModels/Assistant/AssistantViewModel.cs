@@ -602,6 +602,7 @@ public sealed class AssistantViewModel : ObservableObject, IToolHost, IAssistant
             MainViewModel.TagsTab => "Tags",
             MainViewModel.LogicTab => "Logic",
             MainViewModel.FindingsTab => "Findings",
+            MainViewModel.CompareTab => "Compare",
             _ => "Develop",
         };
         sb.AppendLine(CultureInfo.InvariantCulture, $"Tab: {tab}");
@@ -619,6 +620,15 @@ public sealed class AssistantViewModel : ObservableObject, IToolHost, IAssistant
         if (_main.SelectedTab == MainViewModel.DevelopTab && _main.Develop.SelectedItem is { } d)
         {
             sb.AppendLine(CultureInfo.InvariantCulture, $"Draft selected in the Develop tab: {d.Kind} {d.Name}");
+        }
+
+        if (_main.Compare.Other is { } other)
+        {
+            sb.AppendLine(CultureInfo.InvariantCulture, $"Comparing the open project with {Path.GetFileName(other.Project.SourcePath)} ({other.Project.Controller.Name}) - compare_summary, compare_item and read_other_routine read it.");
+            if (_main.SelectedTab == MainViewModel.CompareTab && _main.Compare.SelectedChange is { } c)
+            {
+                sb.AppendLine(CultureInfo.InvariantCulture, $"Difference selected on the Compare tab: {c.Title} ({c.Kind})");
+            }
         }
 
         if (!_main.Develop.IsEmpty)
@@ -695,6 +705,10 @@ public sealed class AssistantViewModel : ObservableObject, IToolHost, IAssistant
             "draft_aoi" => $"Drafting Add-On {Arg("name")}",
             "list_drafts" => "Reading the Develop tab",
             "remove_draft" => $"Removing draft {Arg("name")}",
+            "compare_summary" => "Comparing the two exports",
+            "compare_item" => $"Comparing {Arg("kind")} {Arg("name")}",
+            "read_other_routine" => $"Reading {Arg("program")}/{Arg("routine")} in the other export",
+            "open_comparison" => "Opening the other export",
             _ => name,
         };
     }
@@ -702,6 +716,8 @@ public sealed class AssistantViewModel : ObservableObject, IToolHost, IAssistant
     // ------------------------------------------------------------------ IToolHost
 
     ProjectAnalysis? IToolHost.Analysis => _main.Analysis;
+
+    ProjectAnalysis? IToolHost.Comparison => _main.Compare.Other;
 
     DevelopmentSet IToolHost.Drafts => _main.Develop.Set;
 

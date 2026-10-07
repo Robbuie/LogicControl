@@ -416,6 +416,50 @@ public sealed class DevelopViewModel : ObservableObject
         Message = $"Editing {draft.QualifiedName}. Changes show on the Logic tab against the project; export it, or write a project copy, to take it to Studio 5000.";
     }
 
+    /// <summary>
+    /// Puts a draft made elsewhere - the other export's version of something, from the Compare tab
+    /// - into the set, replacing a draft of the same kind and name, as one revision.
+    /// </summary>
+    public void Adopt(object draft, string label, string author = RevisionAuthor.You)
+    {
+        ArgumentNullException.ThrowIfNull(draft);
+        CommitPending();
+        switch (draft)
+        {
+            case UdtDraft d:
+                _set.DataTypes.RemoveAll(x => Same(x.Name, d.Name));
+                _set.DataTypes.Add(d);
+                break;
+            case AoiDraft a:
+                _set.AddOnInstructions.RemoveAll(x => Same(x.Name, a.Name));
+                _set.AddOnInstructions.Add(a);
+                break;
+            case ProgramDraft p:
+                _set.Programs.RemoveAll(x => Same(x.Name, p.Name));
+                _set.Programs.Add(p);
+                break;
+            case RoutineDraft r:
+                _set.Routines.RemoveAll(x => Same(x.QualifiedName, r.QualifiedName));
+                _set.Routines.Add(r);
+                break;
+            case TagDraft t:
+                _set.Tags.RemoveAll(x => Same(x.QualifiedName, t.QualifiedName));
+                _set.Tags.Add(t);
+                break;
+            case ModuleDraft m:
+                _set.Modules.RemoveAll(x => Same(x.Name, m.Name));
+                _set.Modules.Add(m);
+                break;
+            default:
+                throw new ArgumentException($"Not a draft: {draft.GetType().Name}", nameof(draft));
+        }
+
+        Rebuild(draft);
+        IsDirty = true;
+        Commit(label, author);
+        Message = $"{label}. Review it here, then export it or write a project copy.";
+    }
+
     /// <summary>The routine draft that edits <paramref name="routine"/> in place, if there is one.</summary>
     public RoutineDraft? DraftOf(RoutineInfo routine)
     {

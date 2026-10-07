@@ -327,6 +327,10 @@ public sealed class ItemChangeViewModel(ItemChange change, bool canOpen, bool dr
 
     public string Title => Change.Title;
 
+    public string What => Change.What;
+
+    public string Name => Change.Name;
+
     public string Kind => Change.Kind.ToString();
 
     public string KindText => Change.Kind switch

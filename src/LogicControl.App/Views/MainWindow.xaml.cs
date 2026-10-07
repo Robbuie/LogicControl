@@ -62,7 +62,7 @@ public partial class MainWindow : Window
         DataContextChanged += OnDataContextChanged;
         Closing += OnClosing;
 
-        Key[] digits = [Key.D1, Key.D2, Key.D3, Key.D4, Key.D5, Key.D6, Key.D7, Key.D8];
+        Key[] digits = [Key.D1, Key.D2, Key.D3, Key.D4, Key.D5, Key.D6, Key.D7, Key.D8, Key.D9];
         for (int i = 0; i < digits.Length; i++)
         {
             int tab = i;
@@ -91,6 +91,33 @@ public partial class MainWindow : Window
         if (dialog.ShowDialog(this) == true)
         {
             _ = ViewModel?.OpenAsync(dialog.FileName);
+        }
+    }
+
+    /// <summary>Picks another export to compare the open project with, on the Compare tab.</summary>
+    private void OnCompareWith(object sender, RoutedEventArgs e)
+    {
+        if (ViewModel is not { } vm)
+        {
+            return;
+        }
+
+        var dialog = new OpenFileDialog
+        {
+            Title = "Compare the open project with another L5X export",
+            Filter = L5xFilter,
+            CheckFileExists = true,
+        };
+
+        if (vm.FilePath is { } current && Path.GetDirectoryName(current) is { } folder && Directory.Exists(folder))
+        {
+            dialog.InitialDirectory = folder;
+        }
+
+        if (dialog.ShowDialog(this) == true)
+        {
+            vm.SelectedTab = MainViewModel.CompareTab;
+            _ = vm.Compare.OpenAsync(dialog.FileName);
         }
     }
 

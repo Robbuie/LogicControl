@@ -21,6 +21,43 @@
        on the left and the tabs on the right. -->
 
   <Window.Resources>
+    <!-- The lines of one change - rungs drawn as ladder or listed as text - shared by History and Compare. -->
+    <DataTemplate x:Key="ChangeLines" DataType="{x:Type dev:ItemChangeViewModel}">
+            <ItemsControl ItemsSource="{Binding Lines}" Margin="0,6,0,0">
+              <ItemsControl.ItemTemplate>
+                <DataTemplate DataType="{x:Type dev:DiffLineViewModel}">
+                  <StackPanel>
+                    <TextBlock Style="{StaticResource DiffLineText}" Text="{Binding Text}"
+                               Visibility="{Binding IsPrinted, Converter={StaticResource BoolToVisible}}" />
+      
+                    <!-- A rung drawn as ladder: a coloured bar for added or removed, its label and comment above -->
+                    <Border Style="{StaticResource LogicLineRow}" Padding="0,4"
+                            Visibility="{Binding IsDrawn, Converter={StaticResource BoolToVisible}}">
+                      <Grid>
+                        <Grid.ColumnDefinitions>
+                          <ColumnDefinition Width="8" />
+                          <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
+                        <Border Grid.Column="0" Style="{StaticResource ChangeBar}" />
+                        <StackPanel Grid.Column="1">
+                          <TextBlock Margin="2,0,0,2">
+                            <Run Text="{Binding Label, Mode=OneWay}" FontWeight="SemiBold" Foreground="{DynamicResource txt-1}" /><Run
+                                 Text="   " /><Run Text="{Binding Comment, Mode=OneWay}" FontStyle="Italic" Foreground="{DynamicResource good}" />
+                          </TextBlock>
+                          <ScrollViewer x:Name="diffRungScroll" HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Disabled">
+                            <views:LadderRungView Style="{StaticResource LadderRung}" Text="{Binding Rung}" Shapes="{Binding Shapes}"
+                                                  ViewportWidth="{Binding ViewportWidth, ElementName=diffRungScroll}" ViewportInset="4"
+                                                  ToolTip="{Binding Rung}" />
+                          </ScrollViewer>
+                        </StackPanel>
+                      </Grid>
+                    </Border>
+                  </StackPanel>
+                </DataTemplate>
+              </ItemsControl.ItemTemplate>
+            </ItemsControl>
+    </DataTemplate>
+
     <!-- A table or rung in the chat scrolls sideways; the wheel still scrolls the chat. -->
     <Style x:Key="ChatSideScroll" TargetType="ScrollViewer">
       <Setter Property="HorizontalScrollBarVisibility" Value="Auto" />
@@ -33,6 +70,8 @@
     <Menu x:Key="TitleMenu" Background="Transparent" BorderThickness="0" Padding="0" VerticalAlignment="Center">
       <MenuItem Header="_File">
         <MenuItem Header="_Open L5X export..." Click="OnOpen" InputGestureText="Ctrl+O" />
+        <MenuItem Header="Co_mpare with another export..." Click="OnCompareWith"
+                  ToolTip="Compare the open project with another L5X export - a backup, another line, a contractor's version" />
         <MenuItem Header="Add a _controller to the system view..." Click="OnAddController"
                   ToolTip="Open another controller's export beside this one, to see and check how they talk to each other" />
         <MenuItem Header="_Reload" Command="{Binding ReloadCommand}" InputGestureText="F5"
@@ -55,6 +94,7 @@
         <MenuItem Header="Logic as l_adder" IsCheckable="True" IsChecked="{Binding ShowLadder, Mode=TwoWay}" InputGestureText="Ctrl+L" />
         <MenuItem Header="_Findings" Click="OnShowTab" Tag="6" InputGestureText="Ctrl+7" />
         <MenuItem Header="_Develop" Click="OnShowDevelop" InputGestureText="Ctrl+8" />
+        <MenuItem Header="Co_mpare" Click="OnShowTab" Tag="8" InputGestureText="Ctrl+9" />
         <MenuItem Header="_Claude assistant" IsCheckable="True" IsChecked="{Binding Assistant.IsOpen, Mode=TwoWay}" InputGestureText="Ctrl+Shift+A" />
         <Separator />
         <!-- The same three axes as Redline PDF, the DWG viewer, File Manager and NetControl. -->
@@ -1150,39 +1190,7 @@
                                             CommandParameter="{Binding}" ToolTip="Open this draft" VerticalAlignment="Center" />
                                     <TextBlock Style="{StaticResource Muted}" Text="{Binding Summary}" Margin="10,0,0,0" VerticalAlignment="Center" />
                                   </StackPanel>
-                                  <ItemsControl ItemsSource="{Binding Lines}" Margin="0,6,0,0">
-                                    <ItemsControl.ItemTemplate>
-                                      <DataTemplate DataType="{x:Type dev:DiffLineViewModel}">
-                                        <StackPanel>
-                                          <TextBlock Style="{StaticResource DiffLineText}" Text="{Binding Text}"
-                                                     Visibility="{Binding IsPrinted, Converter={StaticResource BoolToVisible}}" />
-
-                                          <!-- A rung drawn as ladder: a coloured bar for added or removed, its label and comment above -->
-                                          <Border Style="{StaticResource LogicLineRow}" Padding="0,4"
-                                                  Visibility="{Binding IsDrawn, Converter={StaticResource BoolToVisible}}">
-                                            <Grid>
-                                              <Grid.ColumnDefinitions>
-                                                <ColumnDefinition Width="8" />
-                                                <ColumnDefinition Width="*" />
-                                              </Grid.ColumnDefinitions>
-                                              <Border Grid.Column="0" Style="{StaticResource ChangeBar}" />
-                                              <StackPanel Grid.Column="1">
-                                                <TextBlock Margin="2,0,0,2">
-                                                  <Run Text="{Binding Label, Mode=OneWay}" FontWeight="SemiBold" Foreground="{DynamicResource txt-1}" /><Run
-                                                       Text="   " /><Run Text="{Binding Comment, Mode=OneWay}" FontStyle="Italic" Foreground="{DynamicResource good}" />
-                                                </TextBlock>
-                                                <ScrollViewer x:Name="diffRungScroll" HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Disabled">
-                                                  <views:LadderRungView Style="{StaticResource LadderRung}" Text="{Binding Rung}" Shapes="{Binding Shapes}"
-                                                                        ViewportWidth="{Binding ViewportWidth, ElementName=diffRungScroll}" ViewportInset="4"
-                                                                        ToolTip="{Binding Rung}" />
-                                                </ScrollViewer>
-                                              </StackPanel>
-                                            </Grid>
-                                          </Border>
-                                        </StackPanel>
-                                      </DataTemplate>
-                                    </ItemsControl.ItemTemplate>
-                                  </ItemsControl>
+                                  <ContentControl Content="{Binding}" ContentTemplate="{StaticResource ChangeLines}" />
                                 </StackPanel>
                               </Border>
                             </DataTemplate>
@@ -1571,6 +1579,115 @@
                   </DataGrid.Columns>
                 </DataGrid>
               </DockPanel>
+            </Grid>
+          </TabItem>
+          <!-- ======================================================== compare -->
+          <!-- The open project against another export: every difference, the selected one drawn
+               rung by rung, two routines against each other, the other version taken into the
+               Develop tab, and Claude asked to review it with the comparison in its tools. -->
+          <TabItem Header="Compare">
+            <Grid Margin="0,8,0,0" DataContext="{Binding Compare}">
+              <Grid.RowDefinitions>
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="*" />
+              </Grid.RowDefinitions>
+
+              <!-- What is compared with what -->
+              <DockPanel Grid.Row="0" Margin="6,0,6,8">
+                <StackPanel DockPanel.Dock="Right" Orientation="Horizontal">
+                  <Button Style="{StaticResource SmallButton}" Content="Swap direction" Command="{Binding SwapCommand}"
+                          ToolTip="Read the other export as the starting point instead" />
+                  <Button Style="{StaticResource SmallButton}" Content="Close" Command="{Binding CloseCommand}" />
+                  <Button Style="{StaticResource PrimaryButton}" Content="Ask Claude to review" Command="{Binding ReviewAllCommand}" Margin="4,0,0,0"
+                          ToolTip="Claude reads every difference and says which matter, what looks unintended, and what to keep" />
+                </StackPanel>
+                <Button DockPanel.Dock="Left" Style="{StaticResource SmallButton}" Content="Compare with..." Click="OnCompareWith"
+                        ToolTip="Pick the other L5X export" />
+                <StackPanel Margin="8,0,0,0" VerticalAlignment="Center">
+                  <TextBlock Text="{Binding OtherName}" FontWeight="SemiBold" Foreground="{DynamicResource txt-0}" TextTrimming="CharacterEllipsis" />
+                  <TextBlock Style="{StaticResource Muted}" Text="{Binding Direction}" TextTrimming="CharacterEllipsis"
+                             Visibility="{Binding HasOther, Converter={StaticResource BoolToVisible}}" />
+                  <TextBlock Text="{Binding Error}" Foreground="{DynamicResource bad}" TextWrapping="Wrap"
+                             Visibility="{Binding HasError, Converter={StaticResource BoolToVisible}}" />
+                </StackPanel>
+              </DockPanel>
+
+              <!-- Scope, two routines, ladder or text -->
+              <WrapPanel Grid.Row="1" Margin="6,0,6,8" Visibility="{Binding HasOther, Converter={StaticResource BoolToVisible}}">
+                <TextBlock Style="{StaticResource Muted}" Text="Scope" VerticalAlignment="Center" Margin="0,0,6,0" />
+                <ComboBox ItemsSource="{Binding Scopes}" SelectedValuePath="Value" SelectedValue="{Binding Scope, Mode=TwoWay}"
+                          DisplayMemberPath="Label" Width="190" Margin="0,0,16,4" />
+                <TextBlock Style="{StaticResource Muted}" Text="Or routine" VerticalAlignment="Center" Margin="0,0,6,0" />
+                <ComboBox ItemsSource="{Binding ThisRoutines}" SelectedItem="{Binding ThisRoutine, Mode=TwoWay}" Width="200" Margin="0,0,4,4"
+                          ToolTip="A routine in the open project" />
+                <TextBlock Style="{StaticResource Muted}" Text="against" VerticalAlignment="Center" Margin="2,0,6,0" />
+                <ComboBox ItemsSource="{Binding OtherRoutines}" SelectedItem="{Binding OtherRoutine, Mode=TwoWay}" Width="200" Margin="0,0,4,4"
+                          ToolTip="A routine in the other export - it need not have the same name" />
+                <Button Style="{StaticResource SmallButton}" Content="Compare routines" Command="{Binding ComparePairCommand}" Margin="0,0,4,4" />
+                <Button Style="{StaticResource SmallButton}" Content="All differences" Command="{Binding ShowAllCommand}" Margin="0,0,16,4" />
+                <RadioButton Style="{StaticResource SegmentToggle}" Tag="first" Content="Ladder" GroupName="CompareDraw"
+                             IsChecked="{Binding ShowLadder, Mode=TwoWay}" Margin="0,0,0,4" />
+                <RadioButton Style="{StaticResource SegmentToggle}" Tag="last" Content="Text" GroupName="CompareDraw"
+                             IsChecked="{Binding ShowText, Mode=TwoWay}" Margin="0,0,0,4" />
+              </WrapPanel>
+
+              <!-- Nothing open yet -->
+              <StackPanel Grid.Row="2" VerticalAlignment="Center" HorizontalAlignment="Center" MaxWidth="520"
+                          Visibility="{Binding Other, Converter={StaticResource NullToVisible}}">
+                <TextBlock Text="Compare with another export" FontSize="20" FontWeight="SemiBold" Foreground="{DynamicResource txt-0}" HorizontalAlignment="Center" />
+                <TextBlock Style="{StaticResource Muted}" TextWrapping="Wrap" TextAlignment="Center" Margin="0,8,0,16"
+                           Text="Pick another L5X - a backup, another line, the version a contractor sent back - to see every difference from the open project, rung by rung. Take the other version of anything into the Develop tab, or ask Claude to review the differences." />
+                <Button Style="{StaticResource PrimaryButton}" Content="Compare with..." Click="OnCompareWith" HorizontalAlignment="Center" />
+              </StackPanel>
+
+              <Grid Grid.Row="2" Visibility="{Binding HasOther, Converter={StaticResource BoolToVisible}}">
+                <Grid.ColumnDefinitions>
+                  <ColumnDefinition Width="300" MinWidth="200" />
+                  <ColumnDefinition Width="8" />
+                  <ColumnDefinition Width="*" />
+                </Grid.ColumnDefinitions>
+
+                <DockPanel Grid.Column="0">
+                  <TextBlock DockPanel.Dock="Top" Style="{StaticResource Muted}" Text="{Binding Summary}" Margin="6,0,0,6" />
+                  <ListBox x:Name="CompareList" Style="{StaticResource PlainList}" ItemContainerStyle="{StaticResource PlainListItem}"
+                           ItemsSource="{Binding Changes}" SelectedItem="{Binding SelectedChange, Mode=TwoWay}">
+                    <ListBox.ItemTemplate>
+                      <DataTemplate DataType="{x:Type dev:ItemChangeViewModel}">
+                        <StackPanel Margin="0,2">
+                          <StackPanel Orientation="Horizontal">
+                            <Border Style="{StaticResource Chip}" Margin="0,0,6,0">
+                              <TextBlock Text="{Binding KindText}" FontSize="{DynamicResource small-font}" />
+                            </Border>
+                            <TextBlock Text="{Binding Title}" TextTrimming="CharacterEllipsis" VerticalAlignment="Center" />
+                          </StackPanel>
+                          <TextBlock Style="{StaticResource Muted}" Text="{Binding Summary}" TextTrimming="CharacterEllipsis" Margin="0,2,0,0" />
+                        </StackPanel>
+                      </DataTemplate>
+                    </ListBox.ItemTemplate>
+                  </ListBox>
+                </DockPanel>
+
+                <GridSplitter Grid.Column="1" Style="{StaticResource ColumnSplitter}" />
+
+                <DockPanel Grid.Column="2" Margin="4,0,6,0" DataContext="{Binding SelectedChange}"
+                           Visibility="{Binding Converter={StaticResource NotNullToVisible}}">
+                  <DockPanel DockPanel.Dock="Top" Margin="0,0,0,8">
+                    <StackPanel DockPanel.Dock="Right" Orientation="Horizontal">
+                      <Button Style="{StaticResource SmallButton}" Content="Ask Claude about this"
+                              Command="{Binding DataContext.Compare.ReviewSelectedCommand, RelativeSource={RelativeSource AncestorType=Window}}" />
+                      <Button Style="{StaticResource PrimaryButton}" Margin="4,0,0,0"
+                              Content="{Binding DataContext.Compare.TakeOtherText, RelativeSource={RelativeSource AncestorType=Window}}"
+                              Command="{Binding DataContext.Compare.TakeOtherCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                              ToolTip="Draft the other export's version of this item in the Develop tab, as one revision you can review, change or undo" />
+                    </StackPanel>
+                    <TextBlock Style="{StaticResource PanelTitle}" Text="{Binding Title}" FontSize="15" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
+                  </DockPanel>
+                  <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+                    <ContentControl Content="{Binding}" ContentTemplate="{StaticResource ChangeLines}" />
+                  </ScrollViewer>
+                </DockPanel>
+              </Grid>
             </Grid>
           </TabItem>
         </TabControl>

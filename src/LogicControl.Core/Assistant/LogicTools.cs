@@ -4,6 +4,7 @@ using System.Text.Json;
 using System.Text.Json.Nodes;
 using LogicControl.Core.Analysis;
 using LogicControl.Core.Authoring;
+using LogicControl.Core.Authoring.History;
 using LogicControl.Core.Logic;
 using LogicControl.Core.Model;
 
@@ -58,6 +59,10 @@ public sealed class LogicTools(IToolHost host)
                 "draft_aoi" => DraftAoi(input),
                 "list_drafts" => ListDrafts(),
                 "remove_draft" => RemoveDraft(input),
+                "open_comparison" => OpenComparison(input),
+                "compare_summary" => CompareSummary(input),
+                "compare_item" => CompareItem(input),
+                "read_other_routine" => ReadOtherRoutine(input),
                 _ => ToolResult.Fail($"There is no tool called '{name}'."),
             };
 
@@ -135,14 +140,22 @@ public sealed class LogicTools(IToolHost host)
         return sb.Length == 0 ? ToolResult.Fail(program is null ? "The project has no routines." : $"No program '{program}'.") : ToolResult.Ok(sb.ToString());
     }
 
-    private ToolResult ReadRoutine(JsonElement input)
+    private ToolResult ReadRoutine(JsonElement input) => ReadRoutineIn(input, FindRoutine(Required(input, "program"), Required(input, "routine")));
+
+    private ToolResult ReadOtherRoutine(JsonElement input)
     {
+        PlcProject other = Other().Project;
         string program = Required(input, "program");
         string name = Required(input, "routine");
+        RoutineInfo routine = other.AllRoutines.FirstOrDefault(r => Same(r.Owner, program) && Same(r.Name, name))
+            ?? throw new ArgumentException($"The other export has no routine {program}/{name}. compare_summary lists what differs.");
+        return ReadRoutineIn(input, routine);
+    }
+
+    private static ToolResult ReadRoutineIn(JsonElement input, RoutineInfo routine)
+    {
         int from = OptionalInt(input, "from_rung") ?? 0;
         int count = Math.Clamp(OptionalInt(input, "count") ?? 200, 1, 500);
-
-        RoutineInfo routine = FindRoutine(program, name);
         var sb = new StringBuilder();
         sb.AppendLine(CultureInfo.InvariantCulture, $"{routine.QualifiedName} [{LanguageText(routine)}]{(routine.Description is { Length: > 0 } d ? " - " + d : string.Empty)}");
 
@@ -644,6 +657,54 @@ public sealed class LogicTools(IToolHost host)
 
     // ------------------------------------------------------------------ helpers
 
+    // ------------------------------------------------------------------ comparison
+
+    private ProjectAnalysis Other() =>
+        host.Comparison ?? throw new InvalidOperationException(
+            host.CanOpenProjects
+                ? "No comparison is open. Call open_comparison with the path of the other L5X export."
+                : "No comparison is open. Ask the user to pick the other export on the Compare tab (Compare with...).");
+
+    private ToolResult OpenComparison(JsonElement input)
+    {
+        string? problem = host.OpenComparison(Required(input, "path"));
+        return problem is null ? CompareSummary(default) : ToolResult.Fail(problem);
+    }
+
+    private ChangeSet Comparison(string scope) =>
+        ProjectComparison.Compare(Analysis().Project, Other().Project, scope);
+
+    private ToolResult CompareSummary(JsonElement input)
+    {
+        PlcProject open = Analysis().Project;
+        PlcProject other = Other().Project;
+        string scope = input.ValueKind == JsonValueKind.Object ? Optional(input, "scope") ?? ProjectComparison.All : ProjectComparison.All;
+        ChangeSet changes = Comparison(scope);
+
+        var sb = new StringBuilder();
+        sb.AppendLine(CultureInfo.InvariantCulture, $"Open project: {open.Controller.Name} ({Path.GetFileName(open.SourcePath)}). Other export: {other.Controller.Name} ({Path.GetFileName(other.SourcePath)}).");
+        sb.AppendLine("Read as: open project -> other export. Added = only in the other export; Removed = only in the open project.");
+        sb.AppendLine(CultureInfo.InvariantCulture, $"{changes.Items.Count} differences{(scope.Length > 0 ? " in " + scope : string.Empty)}:");
+        foreach (ItemChange c in changes.Items)
+        {
+            sb.AppendLine(CultureInfo.InvariantCulture, $"- {c.What} {c.Name}: {ChangeSet.Verb(c.Kind)}{(c.Summary.Length > 0 ? " - " + c.Summary : string.Empty)}");
+        }
+
+        return ToolResult.Ok(sb.ToString());
+    }
+
+    private ToolResult CompareItem(JsonElement input)
+    {
+        string what = Required(input, "kind");
+        string name = Required(input, "name");
+        ChangeSet changes = Comparison(ProjectComparison.All);
+        ItemChange? change = changes.Items.FirstOrDefault(c => Same(c.What, what) && Same(c.Name, name))
+            ?? changes.Items.FirstOrDefault(c => Same(c.Name, name));
+        return change is null
+            ? ToolResult.Fail($"No difference for {what} {name}: the item is the same in both, or is not in either. compare_summary lists the differences.")
+            : ToolResult.Ok(ProjectComparison.Describe(change));
+    }
+
     private ProjectAnalysis Analysis() =>
         host.Analysis ?? throw new InvalidOperationException(
             host.CanOpenProjects
@@ -807,7 +868,25 @@ public sealed class LogicTools(IToolHost host)
                 Schema(
                     ("kind", "string", "data_type, aoi, routine, tag or program", true),
                     ("name", "string", "Name; a routine as Program/Routine", true)), Writes: true),
+            new("compare_summary", "When the user is comparing the open project with another export: every difference, item by item (data types, Add-Ons, modules, tasks, programs, routines, tags), read as open project -> other export. Added means only in the other export.",
+                Schema(("scope", "string", "A program name, '(controller)' for controller scope, or omit for everything", false)), Writes: false),
+            new("compare_item", "The full difference for one item of the comparison: rungs added, removed and changed (both versions), fields changed.",
+                Schema(
+                    ("kind", "string", "Data type, Add-On, Module, Task, Program, Routine or Tag", true),
+                    ("name", "string", "Name as compare_summary lists it; a routine as Program/Routine", true)), Writes: false),
+            new("read_other_routine", "Read a routine from the other export of the comparison, like read_routine reads the open project's.",
+                Schema(
+                    ("program", "string", "Program name, or AOI name", true),
+                    ("routine", "string", "Routine name", true),
+                    ("from_rung", "integer", "First rung to return, default 0", false),
+                    ("count", "integer", "How many rungs, default 200, max 500", false)), Writes: false),
         ]);
+
+        if (canOpen)
+        {
+            tools.Add(new("open_comparison", "Open a second L5X export to compare the open project with. Returns the comparison summary.",
+                Schema(("path", "string", "Full path of the other .L5X file", true)), Writes: false));
+        }
 
         return tools;
     }
@@ -853,6 +932,12 @@ public interface IToolHost
 
     /// <summary>Opens a project; returns why not, or null.</summary>
     string? OpenProject(string path);
+
+    /// <summary>The other export the open project is being compared with, or null.</summary>
+    ProjectAnalysis? Comparison => null;
+
+    /// <summary>Opens the other export to compare with; returns why not, or null.</summary>
+    string? OpenComparison(string path) => "Comparisons are opened from the Compare tab.";
 
     /// <summary>
     /// Called after a tool changed the drafts, so the Develop tab can refresh and save.

@@ -1,5 +1,21 @@
 # Changelog
 
+## 0.5.0 - compare exports, with Claude
+
+- **Compare tab** (File > Compare with another export, Ctrl+9): the open project against another
+  L5X - a backup, a sister line, a contractor's version. Every difference item by item: data types,
+  Add-Ons, modules (address, RPI, keying...), tasks, programs, routines (ladder rung by rung, drawn
+  as ladder; structured text line by line) and tags. Narrow it to the controller scope or one
+  program, swap the direction, or compare any two routines even when their names differ.
+- **Use the other export's version** of any item: it becomes a draft in the Develop tab as one
+  revision, and the Logic tab shows the routine with the taken rungs marked - review, change,
+  revert or export it like any other edit.
+- **Claude reviews the comparison.** "Ask Claude to review" (or "Ask Claude about this" on one
+  difference) has Claude read the differences through new tools - compare_summary, compare_item,
+  read_other_routine - and say what changes behaviour, what looks unintended, and what to keep.
+  Ask it to merge or apply changes and it drafts them against the open project. In VS Code,
+  open_comparison opens the second export.
+
 ## 0.4.3 - changes drawn as ladder
 
 - **History and Changes vs project draw rungs as ladder.** Each changed rung is drawn with its

@@ -200,6 +200,22 @@ public sealed class FileToolHost : IToolHost
 
     public ProjectAnalysis? Analysis { get; private set; }
 
+    public ProjectAnalysis? Comparison { get; private set; }
+
+    public string? OpenComparison(string path)
+    {
+        try
+        {
+            Comparison = ProjectAnalysis.Open(path);
+            _log.WriteLine($"Comparing with {path}.");
+            return null;
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or L5x.L5xFormatException)
+        {
+            return $"Could not open {path}: {ex.Message}";
+        }
+    }
+
     public DevelopmentSet Drafts { get; }
 
     public bool CanOpenProjects => true;
