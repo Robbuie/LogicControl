@@ -101,6 +101,11 @@ public class AnalysisTests
     [InlineData("LC-LOG-006", 1)]
     [InlineData("LC-LOG-007", 1)]
     [InlineData("LC-LOG-008", 1)]
+    [InlineData("LC-LOG-009", 1)]
+    [InlineData("LC-LOG-010", 1)]
+    [InlineData("LC-HW-006", 1)]
+    [InlineData("LC-COM-003", 1)]
+    [InlineData("LC-MSG-003", 1)]
     public void EachPlantedFaultTripsItsRuleExactly(string rule, int expected) =>
         Assert.Equal(expected, A.Findings.Count(f => f.Rule == rule));
 
@@ -112,8 +117,60 @@ public class AnalysisTests
         Assert.Equal("Conveyor_Run", A.Findings.Single(f => f.Rule == "LC-LOG-001").Subject);
         Assert.Equal("MainProgram/OldLogic", A.Findings.Single(f => f.Rule == "LC-LOG-007").Subject);
         Assert.Contains("Unused_Count", A.Findings.Single(f => f.Rule == "LC-LOG-002").Message, StringComparison.Ordinal);
-        Assert.Equal(16, A.Findings.Count);
+        Assert.Equal("Rack1_AENT", A.Findings.Single(f => f.Rule == "LC-HW-006").Subject);
+        Assert.Equal("Speed_Ref", A.Findings.Single(f => f.Rule == "LC-LOG-010").Subject);
+        Assert.Equal("VFD_101", A.Findings.Single(f => f.Rule == "LC-COM-003").Subject);
+        Assert.Equal("Robot_Read", A.Findings.Single(f => f.Rule == "LC-MSG-003").Subject);
+        Assert.Contains("UDT_Spare", A.Findings.Single(f => f.Rule == "LC-LOG-009").Message, StringComparison.Ordinal);
+        Assert.DoesNotContain("UDT_RobotStatus", A.Findings.Single(f => f.Rule == "LC-LOG-009").Message, StringComparison.Ordinal);
+        Assert.Equal(21, A.Findings.Count);
         Assert.Equal(FindingSeverity.Error, A.Findings[0].Severity);
+    }
+
+    [Fact]
+    public void FindingsCarryTheRungsTheyAreAbout()
+    {
+        Finding coil = A.Findings.Single(f => f.Rule == "LC-LOG-001");
+        Assert.Equal(new[] { "MainProgram/Motors Rung 2", "MainProgram/Motors Rung 3" }, coil.Sites.Select(s => s.Text));
+
+        Finding twoTasks = A.Findings.Single(f => f.Rule == "LC-LOG-010");
+        Assert.Contains(twoTasks.Sites, s => s.Routine == "MainProgram/Calc" && s.IsStructuredText);
+        Assert.Contains(twoTasks.Sites, s => s.Routine == "Fast/MainRoutine" && s.Location == 1);
+
+        Finding uncalled = A.Findings.Single(f => f.Rule == "LC-LOG-007");
+        Assert.Null(Assert.Single(uncalled.Sites).Location);
+
+        Assert.Empty(A.Findings.Single(f => f.Rule == "LC-HW-001").Sites);
+    }
+
+    [Fact]
+    public void NoRpiFindingWithoutAPeriodicTask()
+    {
+        PlcProject p = A.Project with { Tasks = A.Project.Tasks.Where(t => t.Name == "MainTask").ToList() };
+        ProjectAnalysis again = ProjectAnalysis.Analyse(p);
+        Assert.DoesNotContain(again.Findings, f => f.Rule is "LC-HW-006" or "LC-LOG-010");
+    }
+
+    [Fact]
+    public void HandledMessagesAndWatchedStatusAreNotFlagged()
+    {
+        ProjectAnalysis again = WithExtraRungs(
+            "XIC(Robot_Read.DN)OTE(Robot_OK);",
+            "XIC(Robot_Read.ER)OTU(Poll_Bit);",
+            "NEQ(VFD101_Status,16#4000)OTE(Manual_Mode);");
+        Assert.DoesNotContain(again.Findings, f => f.Rule is "LC-MSG-003" or "LC-COM-003");
+    }
+
+    private ProjectAnalysis WithExtraRungs(params string[] rungs)
+    {
+        ProgramInfo main = A.Project.Programs.Single(p => p.Name == "MainProgram");
+        RoutineInfo comms = main.Routines.Single(r => r.Name == "Comms");
+        RoutineInfo more = comms with
+        {
+            Rungs = [.. comms.Rungs, .. rungs.Select((t, i) => new RungInfo(comms.Rungs.Count + i, t, null, "N"))],
+        };
+        ProgramInfo changed = main with { Routines = main.Routines.Select(r => r == comms ? more : r).ToList() };
+        return ProjectAnalysis.Analyse(A.Project with { Programs = A.Project.Programs.Select(p => p == main ? changed : p).ToList() });
     }
 
     [Theory]

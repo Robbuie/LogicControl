@@ -144,6 +144,7 @@ public static class L5xReader
                 .Elements("Connection")
                 .Select(ReadConnection)
                 .ToList() ?? [],
+            CommMethod = Int(communications, "CommMethod"),
             ConfigInstance = communications is null ? null
                 : FirstInt(communications, "ConfigCxnPoint") ?? FirstInt(e, "ConfigCxnPoint"),
             ConfigSize = communications is null ? null : FirstInt(communications, "ConfigSize"),
@@ -267,6 +268,8 @@ public static class L5xReader
                 Double(consume, "RPI"),
                 consume.Attribute("Unicast") is null ? null : Bool(consume, "Unicast")),
             ProduceCount = Int(e.Element("ProduceInfo"), "ProduceCount"),
+            ProduceMinRpiMs = Double(e.Element("ProduceInfo"), "MinimumRPI"),
+            ProduceMaxRpiMs = Double(e.Element("ProduceInfo"), "MaximumRPI"),
             Message = ReadMessage(e),
         };
     }

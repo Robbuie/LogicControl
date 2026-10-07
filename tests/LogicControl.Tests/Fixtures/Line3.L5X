@@ -27,6 +27,12 @@
 </Member>
 </Members>
 </DataType>
+<!-- FINDING LC-LOG-009: a data type nothing uses -->
+<DataType Name="UDT_Spare" Family="NoFamily" Class="User">
+<Members>
+<Member Name="Value" DataType="DINT" Dimension="0" Radix="Decimal" Hidden="false" ExternalAccess="Read/Write"/>
+</Members>
+</DataType>
 </DataTypes>
 <Modules>
 <Module Name="Local" CatalogNumber="1756-L83E" Vendor="1" ProductType="14" ProductCode="166" Major="33" Minor="11" ParentModule="Local" ParentModPortId="1" Inhibited="false" MajorFault="true">
@@ -210,6 +216,7 @@
 </Description>
 </Tag>
 <Tag Name="RunTimer" TagType="Base" DataType="TIMER" Constant="false" ExternalAccess="Read/Write"/>
+<!-- FINDING LC-LOG-010: written by Calc (MainTask) and Fast (FastTask) -->
 <Tag Name="Speed_Ref" TagType="Base" DataType="REAL" Radix="Float" Constant="false" ExternalAccess="Read/Write"/>
 <Tag Name="Line_Speed_Pct" TagType="Base" DataType="REAL" Radix="Float" Constant="false" ExternalAccess="Read/Write"/>
 <!-- FINDING LC-LOG-001: written by two OTEs in Motors -->
@@ -218,10 +225,12 @@
 <Tag Name="Poll_Bit" TagType="Base" DataType="BOOL" Radix="Decimal" Constant="false" ExternalAccess="Read/Write"/>
 <Tag Name="Robot_Data" TagType="Base" DataType="UDT_RobotStatus" Constant="false" ExternalAccess="Read/Write"/>
 <Tag Name="Robot_OK" TagType="Base" DataType="BOOL" Radix="Decimal" Constant="false" ExternalAccess="Read/Write"/>
+<!-- FINDING LC-COM-003: the GSV in Comms writes it, nothing reads it -->
 <Tag Name="VFD101_Status" TagType="Base" DataType="DINT" Radix="Decimal" Constant="false" ExternalAccess="Read/Write"/>
 <Tag Name="M101" TagType="Base" DataType="Motor_Ctrl" Constant="false" ExternalAccess="Read/Write"/>
 <!-- FINDING LC-LOG-002 -->
 <Tag Name="Unused_Count" TagType="Base" DataType="DINT" Radix="Decimal" Constant="false" ExternalAccess="Read/Write"/>
+<!-- FINDING LC-MSG-003: fired, but nothing reads .DN or .ER -->
 <Tag Name="Robot_Read" TagType="Base" DataType="MESSAGE" ExternalAccess="Read/Write">
 <Data Format="Message">
 <MessageParameters MessageType="CIP Data Table Read" RequestedLength="1" ConnectedFlag="1" ConnectionPath="ENBT_2, 2, 192.168.10.5, 1, 0" CommTypeCode="0" ServiceCode="16#004c" ObjectType="16#0000" TargetObject="0" AttributeNumber="16#0000" LocalIndex="0" LocalElement="Robot_Data" RemoteIndex="0" RemoteElement="Robot_Status" CacheConnections="TRUE" LargePacketUsage="FALSE"/>
@@ -370,6 +379,31 @@
 </Routine>
 </Routines>
 </Program>
+<!-- FINDING LC-HW-006: FastTask runs every 10 ms and reads Rack1_AENT, whose RPI is 20 ms -->
+<Program Name="Fast" TestEdits="false" MainRoutineName="MainRoutine" Disabled="false" UseAsFolder="false">
+<Tags>
+<Tag Name="Jam_Eye" TagType="Base" DataType="BOOL" Radix="Decimal" Constant="false" ExternalAccess="Read/Write"/>
+</Tags>
+<Routines>
+<Routine Name="MainRoutine" Type="RLL">
+<RLLContent>
+<Rung Number="0" Type="N">
+<Comment>
+<![CDATA[Jam photo-eye, sampled fast]]>
+</Comment>
+<Text>
+<![CDATA[XIC(Rack1_AENT:I.Slot[1].Data.1)OTE(Jam_Eye);]]>
+</Text>
+</Rung>
+<Rung Number="1" Type="N">
+<Text>
+<![CDATA[XIC(Jam_Eye)MOV(0,Speed_Ref);]]>
+</Text>
+</Rung>
+</RLLContent>
+</Routine>
+</Routines>
+</Program>
 <!-- FINDING LC-LOG-006: in no task -->
 <Program Name="Diagnostics" TestEdits="false" MainRoutineName="MainRoutine" Disabled="false" UseAsFolder="false">
 <Tags/>
@@ -390,6 +424,11 @@
 <Task Name="MainTask" Type="CONTINUOUS" Priority="10" Watchdog="500" DisableUpdateOutputs="false" InhibitTask="false">
 <ScheduledPrograms>
 <ScheduledProgram Name="MainProgram"/>
+</ScheduledPrograms>
+</Task>
+<Task Name="FastTask" Type="PERIODIC" Rate="10" Priority="5" Watchdog="100" DisableUpdateOutputs="false" InhibitTask="false">
+<ScheduledPrograms>
+<ScheduledProgram Name="Fast"/>
 </ScheduledPrograms>
 </Task>
 </Tasks>

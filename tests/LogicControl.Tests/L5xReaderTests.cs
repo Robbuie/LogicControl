@@ -50,7 +50,7 @@ public class L5xReaderTests
     [Fact]
     public void DropsHiddenBoolHostsFromUdts()
     {
-        DataTypeInfo udt = Fixture.Line3.DataTypes.Single();
+        DataTypeInfo udt = Fixture.Line3.DataTypes.Single(d => d.Name == "UDT_RobotStatus");
 
         Assert.Equal(new[] { "Ready", "Fault", "CycleCount" }, udt.Members.Select(m => m.Name));
         Assert.Equal("BOOL", udt.Members[0].DataType);
@@ -102,9 +102,18 @@ public class L5xReaderTests
         Assert.Equal(RoutineLanguage.StructuredText, calc.Language);
         Assert.Equal(3, calc.StructuredText.Count);
 
-        TaskInfo task = p.Tasks.Single();
+        TaskInfo task = p.Tasks.Single(t => t.Name == "MainTask");
         Assert.Equal("CONTINUOUS", task.Type);
         Assert.Equal(new[] { "MainProgram" }, task.ScheduledPrograms);
+
+        TaskInfo fast = p.Tasks.Single(t => t.Name == "FastTask");
+        Assert.Equal("PERIODIC", fast.Type);
+        Assert.Equal(10.0, fast.RateMs);
+        Assert.Equal(5, fast.Priority);
+
+        TagInfo produced = p.Tags.Single(t => t.Name == "Line_Status");
+        Assert.Equal(0.2, produced.ProduceMinRpiMs);
+        Assert.Equal(536870.9, produced.ProduceMaxRpiMs);
     }
 
     [Fact]

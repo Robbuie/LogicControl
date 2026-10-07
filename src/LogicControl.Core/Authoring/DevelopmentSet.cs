@@ -41,9 +41,19 @@ public sealed class DevelopmentSet
 
     public List<RoutineDraft> Routines { get; set; } = [];
 
+    /// <summary>Generic Ethernet modules to add to the I/O tree. Written only into a project copy.</summary>
+    public List<ModuleDraft> Modules { get; set; } = [];
+
+    /// <summary>
+    /// Every saved step of the work, oldest first - see <see cref="History.RevisionHistory"/>. Lives
+    /// in the .lcdev file so the history survives closing the app; never part of a snapshot.
+    /// </summary>
+    public List<History.RevisionRecord>? History { get; set; }
+
     [JsonIgnore]
     public bool IsEmpty =>
-        DataTypes.Count == 0 && AddOnInstructions.Count == 0 && Tags.Count == 0 && Programs.Count == 0 && Routines.Count == 0;
+        DataTypes.Count == 0 && AddOnInstructions.Count == 0 && Tags.Count == 0 && Programs.Count == 0 && Routines.Count == 0
+        && Modules.Count == 0;
 
     /// <summary>Adds everything in <paramref name="other"/>, replacing drafts of the same name.</summary>
     public void Merge(DevelopmentSet other)
@@ -55,9 +65,46 @@ public sealed class DevelopmentSet
         Replace(Tags, other.Tags, t => t.QualifiedName);
         Replace(Programs, other.Programs, p => p.Name);
         Replace(Routines, other.Routines, r => r.QualifiedName);
+        Replace(Modules, other.Modules, m => m.Name);
     }
 
     public string ToJson() => JsonSerializer.Serialize(this, Json);
+
+    /// <summary>
+    /// The drafts alone, compact, without the history - what one revision stores. Two sets with
+    /// the same drafts give the same text, which is how "nothing changed" is told.
+    /// </summary>
+    public string ToSnapshot() => JsonSerializer.Serialize(WithoutHistory(), Snapshot);
+
+    /// <summary>A set from a snapshot. The history is not part of it; the caller keeps its own.</summary>
+    public static DevelopmentSet FromSnapshot(string snapshot)
+    {
+        DevelopmentSet set = FromJson(snapshot);
+        set.History = null;
+        return set;
+    }
+
+    /// <summary>A deep copy of the drafts, with no history.</summary>
+    public DevelopmentSet Clone() => FromSnapshot(ToSnapshot());
+
+    private DevelopmentSet WithoutHistory() => new()
+    {
+        ControllerName = ControllerName,
+        SoftwareRevision = SoftwareRevision,
+        DataTypes = DataTypes,
+        AddOnInstructions = AddOnInstructions,
+        Tags = Tags,
+        Programs = Programs,
+        Routines = Routines,
+        Modules = Modules,
+    };
+
+    private static readonly JsonSerializerOptions Snapshot = new()
+    {
+        WriteIndented = false,
+        DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull,
+        PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
+    };
 
     public static DevelopmentSet FromJson(string json)
     {

@@ -1,5 +1,31 @@
 # Changelog
 
+## 0.4.0 - edit in place with a revision history, the system view, more findings
+
+- **Edit a routine in place.** Edit on the Logic tab (or double-click a rung) opens the routine in
+  the Develop tab; the Logic tab then draws your version with every rung marked - green added,
+  amber changed, faded removed - and the project's text on hover. Show original flips back;
+  Discard edits drops the draft. Findings and cross-references still land on the right rung.
+- **Revision history.** Every step of the work is a revision: adding, deleting, generating, each
+  change Claude makes, a revert - and typing, in bursts per draft. History (Develop tab) lists them
+  newest first, shows what each one changed rung by rung, what has changed since, or what the
+  drafts change in the open project, and goes back to any revision. A revert is itself a revision,
+  so it can be undone. The history is saved in the .lcdev file, also by `--mcp`.
+- **Changes vs project**: the whole set of drafts against the open project before exporting.
+- **System tab**: the controller drawn as a system - controller, bridges, devices - with I/O
+  connections, produced/consumed tags and messages as coloured links. Add the other controllers'
+  exports and they are joined into one plant, with six new checks only the join can make
+  (LC-PLT-001..006: consumed tag nobody produces, RPI outside the producer's range, type mismatch,
+  too many consumers, a message to a tag that is not there, two owners of one device).
+- **Findings open their rung**: every rung or routine in the Where column is a link; double-click a
+  finding or a cross-reference row to open the Logic tab on it.
+- **Five new findings**: RPI slower than the periodic task reading it (LC-HW-006), a GSV status
+  nobody reads (LC-COM-003), a message whose .DN/.ER nothing checks (LC-MSG-003), unused data types
+  and Add-Ons (LC-LOG-009), a tag written from two tasks (LC-LOG-010).
+- **Generic Ethernet modules** as drafts: new, or Edit module... on the Hardware tab; checked
+  (parent port, address clashes, sizes) and written into a project copy.
+- Warnings are errors in shipping code.
+
 ## 0.3.0 - Claude in LogicControl
 
 - Claude assistant panel (Ctrl+Shift+A, or the Claude button): ask about the open project and get

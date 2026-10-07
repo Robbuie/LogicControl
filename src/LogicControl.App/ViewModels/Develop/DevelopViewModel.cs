@@ -3,6 +3,7 @@ using System.Globalization;
 using System.IO;
 using LogicControl.App.Composition;
 using LogicControl.Core.Authoring;
+using LogicControl.Core.Authoring.History;
 using LogicControl.Core.Logic;
 using LogicControl.Core.Model;
 
@@ -20,6 +21,12 @@ namespace LogicControl.App.ViewModels.Develop;
 /// <see cref="DraftChecker"/> over the whole set. That is cheap - a set is tens of items, not
 /// thousands - and it means every issue in the list is always current, including the ones a
 /// rename in one draft causes in another.</para>
+///
+/// <para><b>Every step is a revision</b> (<see cref="RevisionHistory"/>). Adding, deleting,
+/// generating, a change from Claude, a revert - each is recorded as it happens. Typing is
+/// recorded in bursts: edits to one draft are one revision until the person moves to another
+/// draft, a minute passes, or anything else is recorded, so the history reads "Edited Routine
+/// MainProgram/Motors" once rather than once per keystroke.</para>
 /// </summary>
 public sealed class DevelopViewModel : ObservableObject
 {
@@ -33,10 +40,18 @@ public sealed class DevelopViewModel : ObservableObject
     private string? _message;
     private IReadOnlyList<DraftIssueRowViewModel> _issues = [];
     private bool _suspend;
+    private RevisionHistory _history;
+    private string? _pendingLabel;
+    private DateTime _pendingSince;
+
+    /// <summary>Typing into one draft for longer than this starts a new revision.</summary>
+    internal static readonly TimeSpan EditBurst = TimeSpan.FromMinutes(1);
 
     public DevelopViewModel()
     {
         _context = new DraftContext(_set);
+        _history = new RevisionHistory(_set);
+        _history.Record(_set, "Started a development set", RevisionAuthor.File, Clock());
 
         NewDataTypeCommand = new RelayCommand(NewDataType);
         NewAoiCommand = new RelayCommand(NewAoi);
@@ -45,9 +60,123 @@ public sealed class DevelopViewModel : ObservableObject
         EditTagsCommand = new RelayCommand(EditTags);
         FromTemplateCommand = new RelayCommand(OpenTemplates);
         DeleteCommand = new RelayCommand(DeleteSelected, () => _selected?.Draft is not null);
-        ClearCommand = new RelayCommand(() => Load(new DevelopmentSet { ControllerName = _set.ControllerName, SoftwareRevision = _set.SoftwareRevision }, null), () => !_set.IsEmpty);
+        ClearCommand = new RelayCommand(Clear, () => !_set.IsEmpty);
         ShowIssueCommand = new RelayParameterCommand(o => ShowIssue(o as DraftIssueRowViewModel));
+        NewModuleCommand = new RelayCommand(NewModule);
+        ShowHistoryCommand = new RelayCommand(() => ShowHistory(HistoryMode.Step));
+        ShowProjectChangesCommand = new RelayCommand(() => ShowHistory(HistoryMode.Project), () => _project is not null && !_set.IsEmpty);
     }
+
+    // ------------------------------------------------------------------ history
+
+    /// <summary>The time a revision is stamped with. A test sets it; the app leaves it.</summary>
+    public Func<DateTime> Clock { get; set; } = () => DateTime.UtcNow;
+
+    /// <summary>Every revision of the set, oldest first.</summary>
+    public RevisionHistory History => _history;
+
+    /// <summary>Raised after a revision is recorded or the set is replaced - the history view and the Logic tab follow it.</summary>
+    public event EventHandler? Revised;
+
+    /// <summary>Opens the history in the editor area: every step, what it changed, revert to any.</summary>
+    public RelayCommand ShowHistoryCommand { get; }
+
+    /// <summary>Opens what the drafts change in the open project, item by item.</summary>
+    public RelayCommand ShowProjectChangesCommand { get; }
+
+    public void ShowHistory(HistoryMode mode)
+    {
+        CommitPending();
+        SelectedItem = null;
+        Editor = new HistoryViewModel(this, mode);
+    }
+
+    /// <summary>
+    /// Records the set as it stands. Anything typed before it is recorded first, under its own
+    /// label, so a revision never mixes a person's edit with what came after.
+    /// </summary>
+    public RevisionRecord? Commit(string label, string author = RevisionAuthor.You, int? revertedTo = null)
+    {
+        if (author != RevisionAuthor.You || _pendingLabel is not null && _pendingLabel != label)
+        {
+            CommitPending();
+        }
+
+        _pendingLabel = null;
+        RevisionRecord? record = _history.Record(_set, label, author, Clock(), revertedTo);
+        if (record is not null)
+        {
+            OnRevised();
+        }
+
+        return record;
+    }
+
+    private void OnRevised()
+    {
+        (Editor as HistoryViewModel)?.Refresh();
+        Revised?.Invoke(this, EventArgs.Empty);
+    }
+
+    /// <summary>Records edits typed since the last revision, if any.</summary>
+    public void CommitPending()
+    {
+        if (_pendingLabel is { } label)
+        {
+            _pendingLabel = null;
+            if (_history.Record(_set, label, RevisionAuthor.You, Clock()) is not null)
+            {
+                OnRevised();
+            }
+        }
+    }
+
+    /// <summary>
+    /// Puts the drafts back exactly as they were after <paramref name="revision"/>, as a new
+    /// revision - so the revert can itself be undone. The draft that was open stays open if it
+    /// still exists.
+    /// </summary>
+    public void RevertTo(RevisionRecord revision)
+    {
+        ArgumentNullException.ThrowIfNull(revision);
+        CommitPending();
+
+        DraftKind? kind = _selected?.Kind;
+        string? name = _selected?.Name;
+        bool showingHistory = Editor is HistoryViewModel;
+
+        DevelopmentSet restored = RevisionHistory.Restore(revision);
+        restored.History = _set.History;
+        _set = restored;
+        _history = new RevisionHistory(_set);
+
+        Rebuild(null);
+        if (!showingHistory && Items.FirstOrDefault(i => i.Kind == kind && Same(i.Name, name)) is { } again)
+        {
+            SelectedItem = again;
+        }
+
+        OnPropertyChanged(nameof(ControllerName));
+        OnPropertyChanged(nameof(SoftwareRevision));
+        Commit($"Reverted to #{revision.Number.ToString(CultureInfo.InvariantCulture)} ({revision.Label})", RevisionAuthor.You, revision.Number);
+        Message = $"Back to revision {revision.Number.ToString(CultureInfo.InvariantCulture)}. The revert is itself a revision - undo it from the history.";
+    }
+
+    /// <summary>What every draft changes in the open project: "before" is the project's own version.</summary>
+    public ChangeSet ProjectChanges() =>
+        _project is null ? ChangeSet.None : SetDiff.Compare(DraftsFromProject.Counterparts(_project, _set), _set);
+
+    /// <summary>"Routine MainProgram/Motors" for the draft being edited - the label of a typed revision.</summary>
+    private string DescribeSelected() => _selected?.Draft switch
+    {
+        UdtDraft d => $"Edited data type {d.Name}",
+        AoiDraft a => $"Edited Add-On {a.Name}",
+        ProgramDraft p => $"Edited program {p.Name}",
+        RoutineDraft r => $"Edited routine {r.QualifiedName}",
+        ModuleDraft m => $"Edited module {m.Name}",
+        List<TagDraft> => "Edited tags",
+        _ => "Edited drafts",
+    };
 
     // ------------------------------------------------------------------ state
 
@@ -62,6 +191,11 @@ public sealed class DevelopViewModel : ObservableObject
         get => _selected;
         set
         {
+            if (!ReferenceEquals(_selected, value))
+            {
+                CommitPending();
+            }
+
             if (SetProperty(ref _selected, value))
             {
                 Editor = value is null ? null : CreateEditor(value);
@@ -200,6 +334,15 @@ public sealed class DevelopViewModel : ObservableObject
 
     public RelayParameterCommand ShowIssueCommand { get; }
 
+    public RelayCommand NewModuleCommand { get; }
+
+    /// <summary>Ethernet bridges in the open project a module can hang off: name and Ethernet port.</summary>
+    public IReadOnlyList<string> ParentChoices =>
+        [.. (_project?.Modules.Where(m => m.Ports.Any(p => p.IsEthernet && !p.Upstream) || (m.IsLocal && m.Ports.Any(p => p.IsEthernet)))
+              .Select(m => m.Name) ?? ["Local"])
+            .Concat(_set.Modules.Select(m => m.Name))
+            .Distinct(StringComparer.OrdinalIgnoreCase)];
+
     // ------------------------------------------------------------------ project
 
     /// <summary>
@@ -245,6 +388,7 @@ public sealed class DevelopViewModel : ObservableObject
     public void EditCopyOf(RoutineInfo routine)
     {
         ArgumentNullException.ThrowIfNull(routine);
+        CommitPending();
 
         if (routine.OwnerIsAoi)
         {
@@ -256,13 +400,7 @@ public sealed class DevelopViewModel : ObservableObject
             }
         }
 
-        var draft = new RoutineDraft
-        {
-            Name = routine.Name,
-            Program = routine.Owner,
-            Description = routine.Description,
-            Rungs = routine.Rungs.Select(r => new RungDraft(r.Text, r.Comment)).ToList(),
-        };
+        RoutineDraft draft = DraftsFromProject.Routine(routine);
 
         int existing = _set.Routines.FindIndex(r => Same(r.QualifiedName, draft.QualifiedName));
         if (existing >= 0)
@@ -274,13 +412,89 @@ public sealed class DevelopViewModel : ObservableObject
 
         _set.Routines.Add(draft);
         Rebuild(draft);
-        Message = $"Editing a copy of {draft.QualifiedName}. Export it and import over the original in Studio 5000.";
+        Commit($"Started editing routine {draft.QualifiedName}");
+        Message = $"Editing {draft.QualifiedName}. Changes show on the Logic tab against the project; export it, or write a project copy, to take it to Studio 5000.";
+    }
+
+    /// <summary>The routine draft that edits <paramref name="routine"/> in place, if there is one.</summary>
+    public RoutineDraft? DraftOf(RoutineInfo routine)
+    {
+        ArgumentNullException.ThrowIfNull(routine);
+        return routine.OwnerIsAoi ? null : _set.Routines.FirstOrDefault(r => Same(r.QualifiedName, routine.QualifiedName));
+    }
+
+    /// <summary>
+    /// The rungs that edit <paramref name="routine"/> in place: a routine draft of the same name,
+    /// or for an AOI's Logic routine, the AOI draft's logic. Null when it is not being edited.
+    /// </summary>
+    public IReadOnlyList<RungDraft>? EditOf(RoutineInfo routine)
+    {
+        ArgumentNullException.ThrowIfNull(routine);
+        if (routine.OwnerIsAoi)
+        {
+            return Same(routine.Name, "Logic")
+                ? _set.AddOnInstructions.FirstOrDefault(a => Same(a.Name, routine.Owner))?.Logic
+                : null;
+        }
+
+        return DraftOf(routine)?.Rungs;
+    }
+
+    /// <summary>Opens the draft that edits <paramref name="routine"/> at a rung, starting one if needed.</summary>
+    public void Edit(RoutineInfo routine, int? rung = null)
+    {
+        ArgumentNullException.ThrowIfNull(routine);
+        if (EditOf(routine) is null)
+        {
+            EditCopyOf(routine);
+        }
+        else
+        {
+            object? draft = routine.OwnerIsAoi
+                ? _set.AddOnInstructions.FirstOrDefault(a => Same(a.Name, routine.Owner))
+                : DraftOf(routine);
+            if (draft is not null)
+            {
+                Select(draft);
+            }
+        }
+
+        if (rung is int at && Editor is IRungHost host)
+        {
+            host.Rungs.Focus(at);
+        }
+    }
+
+    /// <summary>Drops the edits to a project routine: its draft goes, and the Logic tab shows the project again.</summary>
+    public void DiscardEdits(RoutineInfo routine)
+    {
+        ArgumentNullException.ThrowIfNull(routine);
+        if (routine.OwnerIsAoi && Same(routine.Name, "Logic")
+            && _set.AddOnInstructions.FirstOrDefault(a => Same(a.Name, routine.Owner)) is { } aoi)
+        {
+            CommitPending();
+            _set.AddOnInstructions.Remove(aoi);
+            Rebuild(null);
+            Commit($"Discarded edits to Add-On {aoi.Name}");
+            Message = $"Discarded the edits to {aoi.Name}. They are still in the history.";
+            return;
+        }
+
+        if (DraftOf(routine) is { } draft)
+        {
+            CommitPending();
+            _set.Routines.Remove(draft);
+            Rebuild(null);
+            Commit($"Discarded edits to routine {draft.QualifiedName}");
+            Message = $"Discarded the edits to {draft.QualifiedName}. They are still in the history.";
+        }
     }
 
     /// <summary>Starts an AOI draft from one in the open project.</summary>
     public void EditCopyOf(AoiInfo aoi)
     {
         ArgumentNullException.ThrowIfNull(aoi);
+        CommitPending();
 
         if (aoi.IsProtected)
         {
@@ -288,22 +502,12 @@ public sealed class DevelopViewModel : ObservableObject
             return;
         }
 
-        var draft = new AoiDraft
-        {
-            Name = aoi.Name,
-            Revision = aoi.Revision ?? "1.0",
-            Description = aoi.Description,
-            Parameters = aoi.Parameters
-                .Where(p => p.Name is not ("EnableIn" or "EnableOut"))
-                .Select(p => new AoiParameterDraft(p.Name, p.DataType ?? "BOOL", p.Usage ?? "Input", p.Required, p.Description))
-                .ToList(),
-            LocalTags = aoi.LocalTags.Select(l => new AoiLocalTagDraft(l.Name, l.DataType ?? "DINT", l.Description)).ToList(),
-            Logic = aoi.Routines.FirstOrDefault(r => Same(r.Name, "Logic"))?.Rungs.Select(r => new RungDraft(r.Text, r.Comment)).ToList() ?? [],
-        };
+        AoiDraft draft = DraftsFromProject.Aoi(aoi);
 
         _set.AddOnInstructions.RemoveAll(a => Same(a.Name, draft.Name));
         _set.AddOnInstructions.Add(draft);
         Rebuild(draft);
+        Commit($"Started editing Add-On {draft.Name}");
         Message = $"Editing a copy of the Add-On {aoi.Name}. Bump its revision before importing it back.";
     }
 
@@ -311,17 +515,32 @@ public sealed class DevelopViewModel : ObservableObject
     public void EditCopyOf(DataTypeInfo type)
     {
         ArgumentNullException.ThrowIfNull(type);
+        CommitPending();
 
-        var draft = new UdtDraft
-        {
-            Name = type.Name,
-            Description = type.Description,
-            Members = type.Members.Select(m => new MemberDraft(m.Name, m.DataType ?? "DINT", m.Description, m.Dimension)).ToList(),
-        };
+        UdtDraft draft = DraftsFromProject.DataType(type);
 
         _set.DataTypes.RemoveAll(d => Same(d.Name, draft.Name));
         _set.DataTypes.Add(draft);
         Rebuild(draft);
+        Commit($"Started editing data type {draft.Name}");
+    }
+
+    /// <summary>A module draft from a Generic Ethernet module in the open project.</summary>
+    public bool EditCopyOf(ModuleInfo module)
+    {
+        ArgumentNullException.ThrowIfNull(module);
+        CommitPending();
+        if (DraftsFromProject.Module(module) is not { } draft)
+        {
+            Message = $"{module.Name} is a {module.CatalogNumber}. Only Generic Ethernet modules can be drafted.";
+            return false;
+        }
+
+        _set.Modules.RemoveAll(m => Same(m.Name, draft.Name));
+        _set.Modules.Add(draft);
+        Rebuild(draft);
+        Commit($"Started editing module {draft.Name}");
+        return true;
     }
 
     // ------------------------------------------------------------------ files
@@ -329,11 +548,15 @@ public sealed class DevelopViewModel : ObservableObject
     public void Load(DevelopmentSet set, string? path)
     {
         ArgumentNullException.ThrowIfNull(set);
+        _pendingLabel = null;
         _set = set;
+        _history = new RevisionHistory(set);
         _path = path;
         IsDirty = false;
         SelectedItem = null;
         Rebuild(null);
+        _history.Record(set, path is null ? "Started a development set" : $"Opened {Path.GetFileName(path)}", RevisionAuthor.File, Clock());
+        OnRevised();
         IsDirty = false;
         OnPropertyChanged(nameof(ControllerName));
         OnPropertyChanged(nameof(SoftwareRevision));
@@ -350,6 +573,7 @@ public sealed class DevelopViewModel : ObservableObject
 
     public void Save(string path)
     {
+        CommitPending();
         _set.Save(path);
         _path = path;
         IsDirty = false;
@@ -366,6 +590,7 @@ public sealed class DevelopViewModel : ObservableObject
             throw new InvalidOperationException("Fix the errors in the list before exporting.");
         }
 
+        CommitPending();
         Directory.CreateDirectory(folder);
         var written = new List<string>();
         foreach ((string name, System.Xml.Linq.XDocument doc) in L5xWriter.ExportAll(_set))
@@ -376,7 +601,8 @@ public sealed class DevelopViewModel : ObservableObject
         }
 
         Message = $"Wrote {Plural(written.Count, "import file")} to {folder}. In Studio 5000, import them in number order: "
-            + "data types and AOIs from the Controller Organizer, programs on a task, routines on their program.";
+            + "data types and AOIs from the Controller Organizer, programs on a task, routines on their program."
+            + (_set.Modules.Count > 0 ? " Modules are not import files - use Write into project copy for those." : string.Empty);
         return written;
     }
 
@@ -388,6 +614,7 @@ public sealed class DevelopViewModel : ObservableObject
             throw new InvalidOperationException(MergeHint);
         }
 
+        CommitPending();
         MergeReport report = ProjectMerger.Merge(_project.SourcePath, _set, outputPath);
         Message = $"Wrote {Path.GetFileName(outputPath)}. Open it in Studio 5000 (File > Open, type L5X) to make a new .ACD. "
             + report.ToString().Replace(Environment.NewLine, " ", StringComparison.Ordinal);
@@ -404,6 +631,19 @@ public sealed class DevelopViewModel : ObservableObject
             return;
         }
 
+        string label = DescribeSelected();
+        DateTime now = Clock();
+        if (_pendingLabel is not null && (_pendingLabel != label || now - _pendingSince > EditBurst))
+        {
+            CommitPending();
+        }
+
+        if (_pendingLabel is null)
+        {
+            _pendingLabel = label;
+            _pendingSince = now;
+        }
+
         IsDirty = true;
         Recheck();
         foreach (DraftItemViewModel item in Items)
@@ -412,16 +652,22 @@ public sealed class DevelopViewModel : ObservableObject
         }
 
         ClearCommand.NotifyCanExecuteChanged();
+        Edited?.Invoke(this, EventArgs.Empty);
     }
+
+    /// <summary>Raised on every change to the drafts, typed or not - the Logic tab redraws an edited routine from it.</summary>
+    public event EventHandler? Edited;
 
     /// <summary>Adds a generated set - from a template - and opens its first routine.</summary>
     public void Add(DevelopmentSet generated)
     {
         ArgumentNullException.ThrowIfNull(generated);
+        CommitPending();
         _set.Merge(generated);
         object? first = (object?)generated.Routines.FirstOrDefault() ?? (object?)generated.AddOnInstructions.FirstOrDefault() ?? generated.DataTypes.FirstOrDefault();
         Rebuild(first);
         IsDirty = true;
+        Commit("Generated from a template", RevisionAuthor.Template);
         Message = "Generated "
             + string.Join(", ", new[]
             {
@@ -439,13 +685,18 @@ public sealed class DevelopViewModel : ObservableObject
     /// list, keeps the same item selected if it still exists (by kind and name, because a tool
     /// replaces a draft with a new object), or selects <paramref name="focus"/>.
     /// </summary>
-    public void ChangedElsewhere(object? focus, string? message = null)
+    public void ChangedElsewhere(object? focus, string? message = null, string? label = null, string author = RevisionAuthor.Claude)
     {
         DraftKind? kind = _selected?.Kind;
         string? name = _selected?.Name;
 
+        // The change has already been made, so anything typed before it cannot get a revision of
+        // its own any more - the assistant panel records it before Claude starts (CommitPending).
+        _pendingLabel = null;
+
         Rebuild(null);
         IsDirty = true;
+        Commit(label ?? message ?? "Changed outside the editors", author);
 
         DraftItemViewModel? again = Items.FirstOrDefault(i => i.Kind == kind && Same(i.Name, name));
         if (focus is not null)
@@ -469,13 +720,16 @@ public sealed class DevelopViewModel : ObservableObject
 
     private void NewDataType()
     {
+        CommitPending();
         var udt = new UdtDraft { Name = UniqueName("NewType", _set.DataTypes.Select(d => d.Name)), Members = [new("Value", "DINT")] };
         _set.DataTypes.Add(udt);
         Rebuild(udt);
+        Commit($"Added data type {udt.Name}");
     }
 
     private void NewAoi()
     {
+        CommitPending();
         var aoi = new AoiDraft
         {
             Name = UniqueName("NewAoi", _set.AddOnInstructions.Select(a => a.Name)),
@@ -484,18 +738,22 @@ public sealed class DevelopViewModel : ObservableObject
         };
         _set.AddOnInstructions.Add(aoi);
         Rebuild(aoi);
+        Commit($"Added Add-On {aoi.Name}");
     }
 
     private void NewProgram()
     {
+        CommitPending();
         var program = new ProgramDraft { Name = UniqueName("NewProgram", ProgramChoices), MainRoutineName = "MainRoutine" };
         _set.Programs.Add(program);
         _set.Routines.Add(new RoutineDraft { Name = "MainRoutine", Program = program.Name, Rungs = [new("NOP();")] });
         Rebuild(program);
+        Commit($"Added program {program.Name}");
     }
 
     private void NewRoutine()
     {
+        CommitPending();
         string program = (_selected?.Draft as RoutineDraft)?.Program
             ?? (_selected?.Draft as ProgramDraft)?.Name
             ?? ProgramChoices.FirstOrDefault()
@@ -509,6 +767,54 @@ public sealed class DevelopViewModel : ObservableObject
         };
         _set.Routines.Add(routine);
         Rebuild(routine);
+        Commit($"Added routine {routine.QualifiedName}");
+    }
+
+    private void NewModule()
+    {
+        CommitPending();
+        string parent = ParentChoices.FirstOrDefault(p => !Same(p, "Local")) ?? ParentChoices.FirstOrDefault() ?? "Local";
+        var module = new ModuleDraft
+        {
+            Name = UniqueName("NewModule", _set.Modules.Select(m => m.Name).Concat(_project?.Modules.Select(m => m.Name) ?? [])),
+            ParentModule = parent,
+            ParentPortId = _project?.Modules.FirstOrDefault(m => Same(m.Name, parent))?.Ports.FirstOrDefault(p => p.IsEthernet)?.Id ?? 2,
+            IpAddress = SuggestAddress(parent),
+        };
+        _set.Modules.Add(module);
+        Rebuild(module);
+        Commit($"Added module {module.Name}");
+    }
+
+    /// <summary>The next free address after the highest one on the parent's network, as a starting point.</summary>
+    private string SuggestAddress(string parent)
+    {
+        var used = (_project?.Modules.Select(m => m.IpAddress) ?? []).Concat(_set.Modules.Select(m => m.IpAddress))
+            .Where(ip => ip is not null && System.Net.IPAddress.TryParse(ip, out _) && ip.Count(c => c == '.') == 3)
+            .Select(ip => ip!.Split('.').Select(int.Parse).ToArray())
+            .ToList();
+
+        string? bridgeIp = _project?.Modules.FirstOrDefault(m => Same(m.Name, parent))?.Ports
+            .FirstOrDefault(p => p.IsEthernet && !string.IsNullOrEmpty(p.Address))?.Address;
+        if (bridgeIp is null || bridgeIp.Count(c => c == '.') != 3)
+        {
+            return "192.168.1.100";
+        }
+
+        int[] net = bridgeIp.Split('.').Select(int.Parse).ToArray();
+        int highest = used.Where(u => u[0] == net[0] && u[1] == net[1] && u[2] == net[2]).Select(u => u[3]).DefaultIfEmpty(net[3]).Max();
+        return $"{net[0]}.{net[1]}.{net[2]}.{Math.Min(254, highest + 1)}";
+    }
+
+    private void Clear()
+    {
+        CommitPending();
+        _set = new DevelopmentSet { ControllerName = _set.ControllerName, SoftwareRevision = _set.SoftwareRevision, History = _set.History };
+        _history = new RevisionHistory(_set);
+        SelectedItem = null;
+        Rebuild(null);
+        Commit("Cleared every draft");
+        Message = "Cleared. Every draft is still in the history if you want one back.";
     }
 
     private void EditTags() => SelectedItem = Items.FirstOrDefault(i => i.Kind == DraftKind.Tags);
@@ -521,6 +827,7 @@ public sealed class DevelopViewModel : ObservableObject
 
     private void DeleteSelected()
     {
+        CommitPending();
         switch (_selected?.Draft)
         {
             case UdtDraft d:
@@ -537,12 +844,25 @@ public sealed class DevelopViewModel : ObservableObject
             case RoutineDraft r:
                 _set.Routines.Remove(r);
                 break;
+            case ModuleDraft m:
+                _set.Modules.Remove(m);
+                break;
             default:
                 return;
         }
 
+        string what = _selected!.Name;
+        string kind = _selected.Kind switch
+        {
+            DraftKind.DataType => "data type",
+            DraftKind.Aoi => "Add-On",
+            DraftKind.Program => "program",
+            DraftKind.Module => "module",
+            _ => "routine",
+        };
         Rebuild(null);
         IsDirty = true;
+        Commit($"Deleted {kind} {what}");
     }
 
     private void ShowIssue(DraftIssueRowViewModel? row)
@@ -584,6 +904,11 @@ public sealed class DevelopViewModel : ObservableObject
             foreach (RoutineDraft r in _set.Routines)
             {
                 Items.Add(new DraftItemViewModel(DraftKind.Routine, r));
+            }
+
+            foreach (ModuleDraft m in _set.Modules)
+            {
+                Items.Add(new DraftItemViewModel(DraftKind.Module, m));
             }
 
             Items.Add(new DraftItemViewModel(DraftKind.Tags, _set.Tags));
@@ -633,7 +958,9 @@ public sealed class DevelopViewModel : ObservableObject
         OnPropertyChanged(nameof(TypeChoices));
         OnPropertyChanged(nameof(ProgramChoices));
         OnPropertyChanged(nameof(TaskChoices));
+        OnPropertyChanged(nameof(ParentChoices));
         OnPropertyChanged(nameof(Shapes));
+        ShowProjectChangesCommand?.NotifyCanExecuteChanged();
     }
 
     private object CreateEditor(DraftItemViewModel item) => item.Draft switch
@@ -642,6 +969,7 @@ public sealed class DevelopViewModel : ObservableObject
         AoiDraft a => new AoiEditorViewModel(this, a),
         ProgramDraft p => new ProgramEditorViewModel(this, p),
         RoutineDraft r => new RoutineEditorViewModel(this, r),
+        ModuleDraft m => new ModuleEditorViewModel(this, m),
         List<TagDraft> => new TagsEditorViewModel(this),
         _ => new TemplateGeneratorViewModel(this),
     };
@@ -677,6 +1005,7 @@ public enum DraftKind
     Aoi,
     Program,
     Routine,
+    Module,
     Tags,
 }
 
@@ -696,6 +1025,7 @@ public sealed class DraftItemViewModel(DraftKind kind, object draft) : Observabl
         DraftKind.Aoi => "ADD-ON INSTRUCTIONS",
         DraftKind.Program => "PROGRAMS",
         DraftKind.Routine => "ROUTINES",
+        DraftKind.Module => "MODULES",
         _ => "TAGS",
     };
 
@@ -705,6 +1035,7 @@ public sealed class DraftItemViewModel(DraftKind kind, object draft) : Observabl
         AoiDraft a => Blank(a.Name),
         ProgramDraft p => Blank(p.Name),
         RoutineDraft r => $"{r.Program}/{Blank(r.Name)}",
+        ModuleDraft m => Blank(m.Name),
         List<TagDraft> => "Tags",
         _ => string.Empty,
     };
@@ -715,6 +1046,7 @@ public sealed class DraftItemViewModel(DraftKind kind, object draft) : Observabl
         AoiDraft a => $"{a.Parameters.Count} parameters · {a.Logic.Count} rungs",
         ProgramDraft p => p.Task is { Length: > 0 } t ? $"in {t}" : "unscheduled",
         RoutineDraft r => $"{r.Rungs.Count} rungs",
+        ModuleDraft m => $"{m.IpAddress} under {m.ParentModule}",
         List<TagDraft> tags => $"{tags.Count} drafted",
         _ => string.Empty,
     };

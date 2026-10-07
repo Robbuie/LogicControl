@@ -175,6 +175,9 @@ public sealed class FileToolHost : IToolHost
         DraftsPath = draftsPath;
         _log = log;
         Drafts = File.Exists(draftsPath) ? DevelopmentSet.Load(draftsPath) : new DevelopmentSet();
+
+        // A baseline, so the first change Claude makes is recorded as that change alone.
+        new Authoring.History.RevisionHistory(Drafts).Record(Drafts, $"Opened {Path.GetFileName(draftsPath)}", Authoring.History.RevisionAuthor.File);
     }
 
     public string DraftsPath { get; }
@@ -205,8 +208,12 @@ public sealed class FileToolHost : IToolHost
         }
     }
 
-    public void DraftsChanged()
+    public void DraftsChanged(string summary)
     {
+        // The history goes in the file with the drafts, so a session in VS Code leaves the same
+        // reviewable, revertable trail as one in the app.
+        new Authoring.History.RevisionHistory(Drafts).Record(Drafts, summary, Authoring.History.RevisionAuthor.Claude);
+
         try
         {
             Directory.CreateDirectory(Path.GetDirectoryName(Path.GetFullPath(DraftsPath))!);

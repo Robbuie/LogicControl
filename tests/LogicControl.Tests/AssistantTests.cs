@@ -36,7 +36,7 @@ public class AssistantTests
             return null;
         }
 
-        public void DraftsChanged() => Changes++;
+        public void DraftsChanged(string summary) => Changes++;
     }
 
     private static JsonElement Input(object value) => JsonSerializer.SerializeToElement(value);

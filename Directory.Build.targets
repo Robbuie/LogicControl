@@ -2,12 +2,12 @@
 
   <!-- Imported AFTER the project body, so properties the .csproj sets are visible here.
 
-       NetControl turns TreatWarningsAsErrors on for shipping code. This repo was scaffolded on a
-       machine with no .NET SDK, so the first build has never been run: warnings stay warnings
-       until it builds clean once on Windows, and then this flips to true exactly as NetControl
-       has it. Tracked in PLAN.md, step 0. -->
+       Shipping code builds with warnings as errors, as NetControl does. Turned on in 0.4.0, when
+       the engine, the view models and the whole WPF app (XAML included) built with no warnings
+       under the analyzers in Directory.Build.props. A warning a newer SDK adds fails the verify
+       run; fix it rather than turning this off. -->
   <PropertyGroup Condition="'$(IsTestProject)' != 'true'">
-    <TreatWarningsAsErrors>false</TreatWarningsAsErrors>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
   </PropertyGroup>
 
 </Project>

@@ -26,6 +26,8 @@
     <Menu x:Key="TitleMenu" Background="Transparent" BorderThickness="0" Padding="0" VerticalAlignment="Center">
       <MenuItem Header="_File">
         <MenuItem Header="_Open L5X export..." Click="OnOpen" InputGestureText="Ctrl+O" />
+        <MenuItem Header="Add a _controller to the system view..." Click="OnAddController"
+                  ToolTip="Open another controller's export beside this one, to see and check how they talk to each other" />
         <MenuItem Header="_Reload" Command="{Binding ReloadCommand}" InputGestureText="F5"
                   ToolTip="Read the same file again - after a fresh export from Studio 5000." />
         <MenuItem Header="_Close" Command="{Binding CloseCommand}" />
@@ -40,11 +42,12 @@
         <MenuItem Header="_Overview" Click="OnShowTab" Tag="0" InputGestureText="Ctrl+1" />
         <MenuItem Header="_Hardware" Click="OnShowTab" Tag="1" InputGestureText="Ctrl+2" />
         <MenuItem Header="_Communications" Click="OnShowTab" Tag="2" InputGestureText="Ctrl+3" />
-        <MenuItem Header="_Tags" Click="OnShowTab" Tag="3" InputGestureText="Ctrl+4" />
-        <MenuItem Header="_Logic" Click="OnShowTab" Tag="4" InputGestureText="Ctrl+5" />
+        <MenuItem Header="_System" Click="OnShowTab" Tag="3" InputGestureText="Ctrl+4" />
+        <MenuItem Header="_Tags" Click="OnShowTab" Tag="4" InputGestureText="Ctrl+5" />
+        <MenuItem Header="_Logic" Click="OnShowTab" Tag="5" InputGestureText="Ctrl+6" />
         <MenuItem Header="Logic as l_adder" IsCheckable="True" IsChecked="{Binding ShowLadder, Mode=TwoWay}" InputGestureText="Ctrl+L" />
-        <MenuItem Header="_Findings" Click="OnShowTab" Tag="5" InputGestureText="Ctrl+6" />
-        <MenuItem Header="_Develop" Click="OnShowDevelop" InputGestureText="Ctrl+7" />
+        <MenuItem Header="_Findings" Click="OnShowTab" Tag="6" InputGestureText="Ctrl+7" />
+        <MenuItem Header="_Develop" Click="OnShowDevelop" InputGestureText="Ctrl+8" />
         <MenuItem Header="_Claude assistant" IsCheckable="True" IsChecked="{Binding Assistant.IsOpen, Mode=TwoWay}" InputGestureText="Ctrl+Shift+A" />
         <Separator />
         <!-- The same three axes as Redline PDF, the DWG viewer, File Manager and NetControl. -->
@@ -328,7 +331,7 @@
                       </ItemsControl.ItemTemplate>
                     </ItemsControl>
                     <Button Style="{StaticResource ToolButton}" HorizontalAlignment="Left" Margin="0,8,0,0"
-                            Click="OnShowTab" Tag="5" Content="All findings  &#x2192;" />
+                            Click="OnShowTab" Tag="6" Content="All findings  &#x2192;" />
                   </StackPanel>
                 </Grid>
               </StackPanel>
@@ -385,6 +388,10 @@
                       Padding="12,10" DataContext="{Binding SelectedModule}"
                       Visibility="{Binding Converter={StaticResource NotNullToVisible}}">
                 <StackPanel>
+                  <Button Style="{StaticResource SmallButton}" Content="Edit module..." HorizontalAlignment="Right" Margin="0,0,0,-24"
+                          Command="{Binding DataContext.EditModuleCommand, RelativeSource={RelativeSource AncestorType=Window}}" CommandParameter="{Binding}"
+                          Visibility="{Binding CanDraft, Converter={StaticResource BoolToVisible}}"
+                          ToolTip="Draft a change to this Generic Ethernet module - RPI, sizes, address - in the Develop tab" />
                   <TextBlock>
                     <Run Text="{Binding Name, Mode=OneWay}" FontWeight="SemiBold" Foreground="{DynamicResource txt-0}" />
                     <Run Text="   " />
@@ -433,6 +440,120 @@
             </DataGrid>
           </TabItem>
 
+          <!-- ======================================================== system -->
+          <!-- The controller as a system: its I/O tree drawn, the links coloured by kind; with
+               more exports added, every controller joined on their produced tags and messages,
+               and the problems only the join can show. -->
+          <TabItem Header="System">
+            <Grid Margin="0,8,0,0" DataContext="{Binding SystemView}">
+              <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*" MinWidth="300" />
+                <ColumnDefinition Width="8" />
+                <ColumnDefinition Width="300" MinWidth="200" />
+              </Grid.ColumnDefinitions>
+
+              <DockPanel Grid.Column="0">
+                <DockPanel DockPanel.Dock="Top" Margin="6,0,6,8">
+                  <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Center">
+                    <Button Style="{StaticResource ToolButton}" Command="{Binding ZoomOutCommand}" ToolTip="Zoom out">
+                      <TextBlock Style="{StaticResource Glyph}" FontSize="12" Text="&#xE71F;" />
+                    </Button>
+                    <Button Style="{StaticResource ToolButton}" Command="{Binding ZoomResetCommand}" ToolTip="Actual size" MinWidth="52">
+                      <TextBlock Text="{Binding ZoomText}" VerticalAlignment="Center" />
+                    </Button>
+                    <Button Style="{StaticResource ToolButton}" Command="{Binding ZoomInCommand}" ToolTip="Zoom in">
+                      <TextBlock Style="{StaticResource Glyph}" FontSize="12" Text="&#xE8A3;" />
+                    </Button>
+                  </StackPanel>
+                  <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                    <TextBlock Style="{StaticResource Muted}" Text="{Binding Summary}" VerticalAlignment="Center" />
+                    <!-- Legend: what each line colour means. -->
+                    <StackPanel Orientation="Horizontal" Margin="18,0,0,0" VerticalAlignment="Center">
+                      <Border Width="18" Height="2" Background="{DynamicResource txt-2}" VerticalAlignment="Center" />
+                      <TextBlock Style="{StaticResource Muted}" Text="I/O connection" Margin="5,0,12,0" />
+                      <Border Width="18" Height="2" Background="{DynamicResource good}" VerticalAlignment="Center" />
+                      <TextBlock Style="{StaticResource Muted}" Text="Produced / consumed" Margin="5,0,12,0" />
+                      <Border Width="18" Height="2" Background="{DynamicResource info}" VerticalAlignment="Center" />
+                      <TextBlock Style="{StaticResource Muted}" Text="Message" Margin="5,0,12,0" />
+                      <Border Width="18" Height="2" Background="{DynamicResource accent}" VerticalAlignment="Center" />
+                      <TextBlock Style="{StaticResource Muted}" Text="Same controller" Margin="5,0,0,0" />
+                    </StackPanel>
+                  </StackPanel>
+                </DockPanel>
+
+                <Border DockPanel.Dock="Bottom" Background="{DynamicResource bg-1}" BorderBrush="{DynamicResource line-soft}" BorderThickness="0,1,0,0" Padding="12,8">
+                  <TextBlock Text="{Binding SelectedDetails}" TextWrapping="Wrap" Foreground="{DynamicResource txt-1}" />
+                </Border>
+
+                <ScrollViewer HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Auto" Background="{DynamicResource canvas-bg}">
+                  <views:TopologyView Style="{StaticResource Topology}" LayoutData="{Binding Layout}"
+                                      SelectedNode="{Binding SelectedNode, Mode=TwoWay}" OpenCommand="{Binding OpenNodeCommand}"
+                                      HorizontalAlignment="Left" VerticalAlignment="Top">
+                    <views:TopologyView.LayoutTransform>
+                      <ScaleTransform ScaleX="{Binding Zoom}" ScaleY="{Binding Zoom}" />
+                    </views:TopologyView.LayoutTransform>
+                  </views:TopologyView>
+                </ScrollViewer>
+              </DockPanel>
+
+              <GridSplitter Grid.Column="1" Style="{StaticResource ColumnSplitter}" />
+
+              <!-- The controllers in the view, and what is wrong between them. -->
+              <DockPanel Grid.Column="2" Margin="0,0,6,0">
+                <StackPanel DockPanel.Dock="Top">
+                  <TextBlock Style="{StaticResource PanelHead}" Text="CONTROLLERS" Margin="0,0,0,6" />
+                  <TextBlock Text="{Binding DataContext.Title, RelativeSource={RelativeSource AncestorType=Window}}" FontWeight="SemiBold"
+                             Foreground="{DynamicResource txt-0}" TextTrimming="CharacterEllipsis" ToolTip="The main project - the one on the other tabs" />
+                  <ItemsControl ItemsSource="{Binding Others}" Margin="0,6,0,0">
+                    <ItemsControl.ItemTemplate>
+                      <DataTemplate DataType="{x:Type vm:PlantProjectRowViewModel}">
+                        <DockPanel Margin="0,0,0,6">
+                          <Button DockPanel.Dock="Right" Style="{StaticResource ToolButton}" ToolTip="Take it out of the system view"
+                                  Command="{Binding DataContext.RemoveCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}" CommandParameter="{Binding}">
+                            <TextBlock Style="{StaticResource Glyph}" FontSize="10" Text="&#xE8BB;" />
+                          </Button>
+                          <StackPanel>
+                            <Button Style="{StaticResource LinkButton}" Content="{Binding Name}" ToolTip="Make this the main project"
+                                    Command="{Binding DataContext.MakeMainCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}" CommandParameter="{Binding}" />
+                            <TextBlock Style="{StaticResource Muted}" Text="{Binding Detail}" TextTrimming="CharacterEllipsis" />
+                          </StackPanel>
+                        </DockPanel>
+                      </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                  </ItemsControl>
+                  <Button Style="{StaticResource SmallButton}" Content="Add a controller..." Click="OnAddController" HorizontalAlignment="Left" Margin="0,4,0,0"
+                          ToolTip="Open another controller's L5X export beside this one" />
+                  <TextBlock Text="{Binding Error}" Foreground="{DynamicResource bad}" TextWrapping="Wrap" Margin="0,6,0,0"
+                             Visibility="{Binding HasError, Converter={StaticResource BoolToVisible}}" />
+                  <TextBlock Style="{StaticResource PanelHead}" Text="BETWEEN CONTROLLERS" Margin="0,16,0,4" />
+                  <TextBlock Style="{StaticResource Muted}" Text="{Binding FindingsHeader}" TextWrapping="Wrap" Margin="0,0,0,6" />
+                </StackPanel>
+                <ScrollViewer VerticalScrollBarVisibility="Auto">
+                  <ItemsControl ItemsSource="{Binding Findings}">
+                    <ItemsControl.ItemTemplate>
+                      <DataTemplate DataType="{x:Type vm:FindingRowViewModel}">
+                        <Grid Margin="0,0,0,10">
+                          <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="14" />
+                            <ColumnDefinition Width="*" />
+                          </Grid.ColumnDefinitions>
+                          <Ellipse Grid.Column="0" Style="{StaticResource LevelDot}" VerticalAlignment="Top" Margin="0,5,0,0" HorizontalAlignment="Left" />
+                          <StackPanel Grid.Column="1">
+                            <TextBlock>
+                              <Run Text="{Binding Subject, Mode=OneWay}" FontWeight="SemiBold" Foreground="{DynamicResource txt-0}" />
+                              <Run Text="{Binding Rule, Mode=OneWay}" Foreground="{DynamicResource txt-2}" />
+                            </TextBlock>
+                            <TextBlock Text="{Binding Message}" TextWrapping="Wrap" Foreground="{DynamicResource txt-1}" />
+                          </StackPanel>
+                        </Grid>
+                      </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                  </ItemsControl>
+                </ScrollViewer>
+              </DockPanel>
+            </Grid>
+          </TabItem>
+
           <!-- ======================================================== tags -->
           <TabItem Header="{Binding TagsHeader}">
             <Grid Margin="0,8,0,0">
@@ -465,7 +586,8 @@
                 <TextBlock DockPanel.Dock="Top" Style="{StaticResource PanelHead}" Margin="4,0,0,6">
                   <Run Text="CROSS REFERENCE  " /><Run Text="{Binding SelectedTag.Name, Mode=OneWay}" Foreground="{DynamicResource txt-0}" />
                 </TextBlock>
-                <DataGrid ItemsSource="{Binding SelectedTag.Uses}"
+                <DataGrid ItemsSource="{Binding SelectedTag.Uses}" MouseDoubleClick="OnTagUseDoubleClick"
+                          ToolTip="Double-click a use to open its rung"
                           AutoGenerateColumns="False" IsReadOnly="True" HeadersVisibility="Column" GridLinesVisibility="None"
                           SelectionMode="Single" CanUserAddRows="False" BorderThickness="0">
                   <DataGrid.Columns>
@@ -491,9 +613,16 @@
                 <Button DockPanel.Dock="Right" Style="{StaticResource SmallButton}" Content="Ask Claude" Margin="6,0,0,0"
                         Command="{Binding Assistant.AskCommand}" CommandParameter="Explain the routine I have open: what it does, what drives its outputs, and anything that looks wrong."
                         VerticalAlignment="Center" ToolTip="Have Claude explain this routine in the assistant panel" />
-                <Button DockPanel.Dock="Right" Style="{StaticResource SmallButton}" Content="Edit a copy" Margin="10,0,0,0"
-                        Command="{Binding EditRoutineCopyCommand}" VerticalAlignment="Center"
-                        ToolTip="Copy this routine into the Develop tab to change it and export it back to Studio 5000" />
+                <Button DockPanel.Dock="Right" Style="{StaticResource SmallButton}" Content="Discard edits" Margin="6,0,0,0"
+                        Command="{Binding DiscardEditsCommand}" VerticalAlignment="Center"
+                        Visibility="{Binding RoutineHasEdits, Converter={StaticResource BoolToVisible}}"
+                        ToolTip="Drop the draft that edits this routine and show the project's own again. The edits stay in the history." />
+                <Button DockPanel.Dock="Right" Style="{StaticResource SmallButton}" Content="Edit" Margin="10,0,0,0"
+                        Command="{Binding EditRoutineCommand}" VerticalAlignment="Center"
+                        ToolTip="Change this routine. The Logic tab then shows your version with every changed rung marked; double-click a rung to edit just that one." />
+                <CheckBox DockPanel.Dock="Right" Content="Show original" IsChecked="{Binding ShowOriginal, Mode=TwoWay}" Margin="10,0,0,0"
+                          VerticalAlignment="Center" Visibility="{Binding RoutineHasEdits, Converter={StaticResource BoolToVisible}}"
+                          ToolTip="Show the project's own routine instead of your edited version" />
                 <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Center"
                             Visibility="{Binding Routine.IsLadder, Converter={StaticResource BoolToVisible}, FallbackValue=Collapsed}">
                   <RadioButton Style="{StaticResource SegmentToggle}" Tag="first" Content="Ladder" GroupName="LogicMode"
@@ -504,6 +633,16 @@
                 <TextBlock Style="{StaticResource PanelTitle}" Text="{Binding Routine.Title}" FontSize="16" VerticalAlignment="Center" />
                 <TextBlock Style="{StaticResource Muted}" Text="{Binding Routine.Summary}" Margin="12,0,0,0" VerticalAlignment="Center" />
               </DockPanel>
+
+              <!-- Editing in place: says what is shown, and that it is not in Studio 5000 yet. -->
+              <Border DockPanel.Dock="Top" Margin="6,0,6,8" Padding="10,6" CornerRadius="{DynamicResource corner-sm}"
+                      Background="{DynamicResource row-warn}" BorderBrush="{DynamicResource warn}" BorderThickness="1"
+                      Visibility="{Binding Routine.IsEdited, Converter={StaticResource BoolToVisible}, FallbackValue=Collapsed}">
+                <TextBlock TextWrapping="Wrap" Foreground="{DynamicResource txt-0}">
+                  <Run Text="Your edited version" FontWeight="SemiBold" /><Run Text=" - " /><Run Text="{Binding Routine.EditSummary, Mode=OneWay}" /><Run
+                       Text=". Green bars are new rungs, amber changed, faded ones removed; hover a bar for what the project has. It reaches Studio 5000 when you export it or write a project copy from the Develop tab." />
+                </TextBlock>
+              </Border>
 
               <Grid>
                 <!-- Ladder: one drawn rung per row, comment above it, number in the gutter. Scrolls
@@ -528,12 +667,13 @@
                   </ItemsControl.ItemsPanel>
                   <ItemsControl.ItemTemplate>
                     <DataTemplate DataType="{x:Type vm:LogicLineViewModel}">
-                      <Border BorderBrush="{DynamicResource line-soft}" BorderThickness="0,0,0,1" Padding="0,6">
+                      <Border Style="{StaticResource LogicLineRow}" Padding="0,6" ToolTip="{Binding ChangeNote}" MouseLeftButtonDown="OnLogicLineMouseDown">
                         <Grid>
                           <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="52" />
                             <ColumnDefinition Width="*" />
                           </Grid.ColumnDefinitions>
+                          <Border Grid.Column="0" Style="{StaticResource ChangeBar}" Margin="2,0,0,0" />
                           <TextBlock Grid.Column="0" Style="{StaticResource MonoText}" Text="{Binding Number}"
                                      Foreground="{DynamicResource txt-2}" HorizontalAlignment="Right" VerticalAlignment="Top"
                                      Margin="0,4,10,0" />
@@ -556,7 +696,7 @@
 
                 <!-- Text: one row per rung or ST line, the logic as coloured runs that wrap.
                      Virtualised, so a 3,000-rung routine scrolls. -->
-                <ItemsControl ItemsSource="{Binding Routine.Lines}"
+                <ItemsControl x:Name="TextList" ItemsSource="{Binding Routine.Lines}"
                               Visibility="{Binding TextVisible, Converter={StaticResource BoolToVisible}}"
                               VirtualizingPanel.IsVirtualizing="True" VirtualizingPanel.VirtualizationMode="Recycling"
                               ScrollViewer.CanContentScroll="True">
@@ -574,12 +714,13 @@
                   </ItemsControl.ItemsPanel>
                   <ItemsControl.ItemTemplate>
                     <DataTemplate DataType="{x:Type vm:LogicLineViewModel}">
-                      <Border BorderBrush="{DynamicResource line-soft}" BorderThickness="0,0,0,1" Padding="0,8">
+                      <Border Style="{StaticResource LogicLineRow}" Padding="0,8" ToolTip="{Binding ChangeNote}" MouseLeftButtonDown="OnLogicLineMouseDown">
                         <Grid>
                           <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="52" />
                             <ColumnDefinition Width="*" />
                           </Grid.ColumnDefinitions>
+                          <Border Grid.Column="0" Style="{StaticResource ChangeBar}" Margin="2,0,0,0" />
                           <TextBlock Grid.Column="0" Style="{StaticResource MonoText}" Text="{Binding Number}"
                                      Foreground="{DynamicResource txt-2}" HorizontalAlignment="Right" Margin="0,0,14,0" />
                           <StackPanel Grid.Column="1">
@@ -609,9 +750,10 @@
 
           <!-- ======================================================== findings -->
           <TabItem Header="{Binding FindingsHeader}">
-            <DataGrid ItemsSource="{Binding Findings}" Margin="0,8,0,0"
+            <DataGrid ItemsSource="{Binding Findings}" Margin="0,8,0,0" MouseDoubleClick="OnFindingDoubleClick"
                       AutoGenerateColumns="False" IsReadOnly="True" HeadersVisibility="Column" GridLinesVisibility="None"
-                      SelectionMode="Single" CanUserAddRows="False" BorderThickness="0" RowHeight="NaN">
+                      SelectionMode="Single" CanUserAddRows="False" BorderThickness="0" RowHeight="NaN"
+                      ToolTip="Double-click a finding to open the rung it is about">
               <DataGrid.Columns>
                 <DataGridTemplateColumn Header="Severity" Width="84" SortMemberPath="Level">
                   <DataGridTemplateColumn.CellTemplate>
@@ -638,14 +780,28 @@
                     </Style>
                   </DataGridTextColumn.ElementStyle>
                 </DataGridTextColumn>
-                <DataGridTextColumn Header="Where" Binding="{Binding Location}" Width="*">
-                  <DataGridTextColumn.ElementStyle>
-                    <Style TargetType="TextBlock" BasedOn="{StaticResource {x:Type TextBlock}}">
-                      <Setter Property="TextWrapping" Value="Wrap" />
-                      <Setter Property="Foreground" Value="{DynamicResource txt-2}" />
-                    </Style>
-                  </DataGridTextColumn.ElementStyle>
-                </DataGridTextColumn>
+                <!-- Each rung or routine is a link that opens it on the Logic tab; findings about
+                     hardware keep their plain text. -->
+                <DataGridTemplateColumn Header="Where" Width="*" SortMemberPath="Location">
+                  <DataGridTemplateColumn.CellTemplate>
+                    <DataTemplate DataType="{x:Type vm:FindingRowViewModel}">
+                      <StackPanel Margin="0,6">
+                        <ItemsControl ItemsSource="{Binding Sites}"
+                                      Visibility="{Binding HasSites, Converter={StaticResource BoolToVisible}}">
+                          <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                              <Button Style="{StaticResource LinkButton}" Content="{Binding Text}" Margin="0,0,0,2"
+                                      Command="{Binding DataContext.OpenSiteCommand, RelativeSource={RelativeSource AncestorType=DataGrid}}"
+                                      CommandParameter="{Binding}" ToolTip="Open this on the Logic tab" />
+                            </DataTemplate>
+                          </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                        <TextBlock Text="{Binding Location}" TextWrapping="Wrap" Foreground="{DynamicResource txt-2}"
+                                   Visibility="{Binding ShowLocationText, Converter={StaticResource BoolToVisible}}" />
+                      </StackPanel>
+                    </DataTemplate>
+                  </DataGridTemplateColumn.CellTemplate>
+                </DataGridTemplateColumn>
               </DataGrid.Columns>
             </DataGrid>
           </TabItem>
@@ -828,6 +984,173 @@
                     <TextBlock Style="{StaticResource Muted}" TextWrapping="Wrap"
                                Text="Routines and tags drafted with this program's name go inside it. Renaming the program moves them with it." />
                   </StackPanel>
+                </DataTemplate>
+
+                <!-- ............................................ generic ethernet module -->
+                <DataTemplate DataType="{x:Type dev:ModuleEditorViewModel}">
+                  <ScrollViewer VerticalScrollBarVisibility="Auto">
+                    <StackPanel MaxWidth="620" HorizontalAlignment="Left">
+                      <TextBlock Style="{StaticResource PanelTitle}" Text="{Binding Heading}" Margin="0,0,0,10" />
+                      <Grid>
+                        <Grid.ColumnDefinitions>
+                          <ColumnDefinition Width="*" />
+                          <ColumnDefinition Width="12" />
+                          <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
+                        <StackPanel Grid.Column="0">
+                          <TextBlock Style="{StaticResource FieldLabel}" Text="Name" />
+                          <TextBox Text="{Binding Name, UpdateSourceTrigger=LostFocus}" Margin="0,0,0,10" />
+                          <TextBlock Style="{StaticResource FieldLabel}" Text="Parent (Ethernet bridge)" />
+                          <ComboBox IsEditable="True" ItemsSource="{Binding ParentChoices}" Text="{Binding ParentModule, UpdateSourceTrigger=LostFocus}" Margin="0,0,0,10" />
+                          <TextBlock Style="{StaticResource FieldLabel}" Text="Comm format" />
+                          <ComboBox ItemsSource="{Binding FormatChoices}" SelectedItem="{Binding Format, Mode=TwoWay}" Margin="0,0,0,10" />
+                        </StackPanel>
+                        <StackPanel Grid.Column="2">
+                          <TextBlock Style="{StaticResource FieldLabel}" Text="IP address" />
+                          <TextBox FontFamily="{DynamicResource mono}" Text="{Binding IpAddress, UpdateSourceTrigger=LostFocus}" Margin="0,0,0,10" />
+                          <TextBlock Style="{StaticResource FieldLabel}" Text="Parent's Ethernet port" />
+                          <TextBox Text="{Binding ParentPortId, UpdateSourceTrigger=LostFocus}" Margin="0,0,0,10" />
+                          <TextBlock Style="{StaticResource FieldLabel}" Text="RPI (ms)" />
+                          <TextBox Text="{Binding RpiMs, UpdateSourceTrigger=LostFocus}" Margin="0,0,0,10" />
+                        </StackPanel>
+                      </Grid>
+
+                      <TextBlock Style="{StaticResource PanelHead}" Text="CONNECTION PARAMETERS" Margin="0,6,0,6" />
+                      <Grid>
+                        <Grid.ColumnDefinitions>
+                          <ColumnDefinition Width="110" />
+                          <ColumnDefinition Width="*" />
+                          <ColumnDefinition Width="12" />
+                          <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
+                        <Grid.RowDefinitions>
+                          <RowDefinition Height="Auto" />
+                          <RowDefinition Height="Auto" />
+                          <RowDefinition Height="Auto" />
+                          <RowDefinition Height="Auto" />
+                        </Grid.RowDefinitions>
+                        <TextBlock Grid.Row="0" Grid.Column="1" Style="{StaticResource FieldLabel}" Text="Assembly instance" />
+                        <TextBlock Grid.Row="0" Grid.Column="3" Style="{StaticResource FieldLabel}" Text="Size (elements; configuration in bytes)" />
+                        <TextBlock Grid.Row="1" Grid.Column="0" Text="Input" VerticalAlignment="Center" />
+                        <TextBox Grid.Row="1" Grid.Column="1" Text="{Binding InputInstance, UpdateSourceTrigger=LostFocus}" Margin="0,0,0,6" />
+                        <TextBox Grid.Row="1" Grid.Column="3" Text="{Binding InputSize, UpdateSourceTrigger=LostFocus}" Margin="0,0,0,6" />
+                        <TextBlock Grid.Row="2" Grid.Column="0" Text="Output" VerticalAlignment="Center" />
+                        <TextBox Grid.Row="2" Grid.Column="1" Text="{Binding OutputInstance, UpdateSourceTrigger=LostFocus}" Margin="0,0,0,6" />
+                        <TextBox Grid.Row="2" Grid.Column="3" Text="{Binding OutputSize, UpdateSourceTrigger=LostFocus}" Margin="0,0,0,6" />
+                        <TextBlock Grid.Row="3" Grid.Column="0" Text="Configuration" VerticalAlignment="Center" />
+                        <TextBox Grid.Row="3" Grid.Column="1" Text="{Binding ConfigInstance, UpdateSourceTrigger=LostFocus}" Margin="0,0,0,6" />
+                        <TextBox Grid.Row="3" Grid.Column="3" Text="{Binding ConfigSize, UpdateSourceTrigger=LostFocus}" Margin="0,0,0,6" />
+                      </Grid>
+                      <CheckBox Content="Unicast connection" IsChecked="{Binding Unicast}" Margin="0,4,0,10" />
+                      <TextBlock Style="{StaticResource FieldLabel}" Text="Description" />
+                      <TextBox Text="{Binding Description, UpdateSourceTrigger=LostFocus}" Margin="0,0,0,12" />
+                      <TextBlock Style="{StaticResource Muted}" TextWrapping="Wrap" Text="{Binding TagsNote}" />
+                    </StackPanel>
+                  </ScrollViewer>
+                </DataTemplate>
+
+                <!-- ............................................ history -->
+                <!-- Every revision on the left, newest first; on the right what the selected one
+                     changed, rung by rung, with a button to go back to it. The same viewer shows
+                     the drafts against the open project. -->
+                <DataTemplate DataType="{x:Type dev:HistoryViewModel}">
+                  <Grid>
+                    <Grid.ColumnDefinitions>
+                      <ColumnDefinition Width="300" MinWidth="200" />
+                      <ColumnDefinition Width="8" />
+                      <ColumnDefinition Width="*" />
+                    </Grid.ColumnDefinitions>
+
+                    <DockPanel Grid.Column="0">
+                      <TextBlock DockPanel.Dock="Top" Style="{StaticResource PanelHead}" Text="REVISIONS" Margin="4,0,0,6" />
+                      <ListBox Style="{StaticResource PlainList}" ItemContainerStyle="{StaticResource PlainListItem}"
+                               ItemsSource="{Binding Revisions}" SelectedItem="{Binding SelectedRevision, Mode=TwoWay}">
+                        <ListBox.ItemTemplate>
+                          <DataTemplate DataType="{x:Type dev:RevisionRowViewModel}">
+                            <Grid Margin="0,3">
+                              <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="40" />
+                                <ColumnDefinition Width="*" />
+                              </Grid.ColumnDefinitions>
+                              <TextBlock Grid.Column="0" Style="{StaticResource MonoText}" Text="{Binding NumberText}" Foreground="{DynamicResource txt-2}" />
+                              <StackPanel Grid.Column="1">
+                                <TextBlock Text="{Binding Label}" TextWrapping="Wrap" Foreground="{DynamicResource txt-0}" />
+                                <StackPanel Orientation="Horizontal" Margin="0,2,0,0">
+                                  <TextBlock Style="{StaticResource Muted}" Text="{Binding When}" />
+                                  <TextBlock Style="{StaticResource Muted}" Text=" · " />
+                                  <TextBlock Text="{Binding Author}">
+                                    <TextBlock.Style>
+                                      <Style TargetType="TextBlock" BasedOn="{StaticResource Muted}">
+                                        <Style.Triggers>
+                                          <DataTrigger Binding="{Binding AuthorKind}" Value="Claude">
+                                            <Setter Property="Foreground" Value="{DynamicResource accent-text}" />
+                                          </DataTrigger>
+                                          <DataTrigger Binding="{Binding AuthorKind}" Value="Template">
+                                            <Setter Property="Foreground" Value="{DynamicResource info}" />
+                                          </DataTrigger>
+                                        </Style.Triggers>
+                                      </Style>
+                                    </TextBlock.Style>
+                                  </TextBlock>
+                                  <TextBlock Style="{StaticResource Muted}" Text="  · current" Visibility="{Binding IsLatest, Converter={StaticResource BoolToVisible}}" />
+                                </StackPanel>
+                                <TextBlock Style="{StaticResource Muted}" Text="{Binding Summary}" TextWrapping="Wrap" Margin="0,2,0,0" />
+                              </StackPanel>
+                            </Grid>
+                          </DataTemplate>
+                        </ListBox.ItemTemplate>
+                      </ListBox>
+                    </DockPanel>
+
+                    <GridSplitter Grid.Column="1" Style="{StaticResource ColumnSplitter}" />
+
+                    <DockPanel Grid.Column="2">
+                      <DockPanel DockPanel.Dock="Top" Margin="0,0,0,8">
+                        <Button DockPanel.Dock="Right" Style="{StaticResource PrimaryButton}" Content="Go back to this revision"
+                                Command="{Binding RevertCommand}" VerticalAlignment="Center"
+                                ToolTip="Put every draft back as it was after the selected revision. The revert is recorded too, so it can be undone." />
+                        <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                          <RadioButton Style="{StaticResource SegmentToggle}" Tag="first" Content="This step" GroupName="HistoryMode"
+                                       IsChecked="{Binding IsStep, Mode=TwoWay}" ToolTip="What the selected revision changed" />
+                          <RadioButton Style="{StaticResource SegmentToggle}" Content="Since then" GroupName="HistoryMode"
+                                       IsChecked="{Binding IsSince, Mode=TwoWay}" ToolTip="Everything changed after the selected revision - what going back would undo" />
+                          <RadioButton Style="{StaticResource SegmentToggle}" Tag="last" Content="Against the project" GroupName="HistoryMode"
+                                       IsChecked="{Binding IsProject, Mode=TwoWay}" IsEnabled="{Binding HasProject}"
+                                       ToolTip="What the drafts change in the open project" />
+                        </StackPanel>
+                      </DockPanel>
+                      <TextBlock DockPanel.Dock="Top" Style="{StaticResource Muted}" Text="{Binding Caption}" TextWrapping="Wrap" Margin="0,0,0,8" />
+
+                      <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+                        <ItemsControl ItemsSource="{Binding Changes}">
+                          <ItemsControl.ItemTemplate>
+                            <DataTemplate DataType="{x:Type dev:ItemChangeViewModel}">
+                              <Border BorderBrush="{DynamicResource line-soft}" BorderThickness="0,0,0,1" Padding="0,8,0,10">
+                                <StackPanel>
+                                  <StackPanel Orientation="Horizontal">
+                                    <Border Style="{StaticResource Chip}" Margin="0,0,8,0">
+                                      <TextBlock Text="{Binding KindText}" FontSize="{DynamicResource small-font}" />
+                                    </Border>
+                                    <Button Style="{StaticResource LinkButton}" Content="{Binding Title}" FontWeight="SemiBold"
+                                            Command="{Binding DataContext.OpenDraftCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                            CommandParameter="{Binding}" ToolTip="Open this draft" VerticalAlignment="Center" />
+                                    <TextBlock Style="{StaticResource Muted}" Text="{Binding Summary}" Margin="10,0,0,0" VerticalAlignment="Center" />
+                                  </StackPanel>
+                                  <ItemsControl ItemsSource="{Binding Lines}" Margin="0,6,0,0">
+                                    <ItemsControl.ItemTemplate>
+                                      <DataTemplate>
+                                        <TextBlock Style="{StaticResource DiffLineText}" Text="{Binding Text}" />
+                                      </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                  </ItemsControl>
+                                </StackPanel>
+                              </Border>
+                            </DataTemplate>
+                          </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                      </ScrollViewer>
+                    </DockPanel>
+                  </Grid>
                 </DataTemplate>
 
                 <!-- ............................................ add-on instruction -->
@@ -1099,10 +1422,22 @@
                   <Button Style="{StaticResource SmallButton}" Content="Program" Command="{Binding NewProgramCommand}" ToolTip="New program with a main routine" />
                   <Button Style="{StaticResource SmallButton}" Content="Routine" Command="{Binding NewRoutineCommand}" ToolTip="New ladder routine" />
                   <Button Style="{StaticResource SmallButton}" Content="Tags" Command="{Binding EditTagsCommand}" ToolTip="Drafted tags" />
+                  <Button Style="{StaticResource SmallButton}" Content="Module" Command="{Binding NewModuleCommand}"
+                          ToolTip="New Generic Ethernet module - a device the controller connects to by assembly instance" />
                   <Button Style="{StaticResource SmallButton}" Content="From template..." Command="{Binding FromTemplateCommand}"
                           ToolTip="Generate a UDT, tags and rungs for a list of motors, valves, alarms..." />
                   <Border Style="{StaticResource ToolbarSeparator}" />
                   <Button Style="{StaticResource SmallButton}" Content="Delete" Command="{Binding DeleteCommand}" ToolTip="Delete the selected draft" />
+                  <Border Style="{StaticResource ToolbarSeparator}" />
+                  <Button Style="{StaticResource SmallButton}" Command="{Binding ShowHistoryCommand}"
+                          ToolTip="Every step of this work: what each changed, and go back to any of them">
+                    <StackPanel Orientation="Horizontal">
+                      <TextBlock Style="{StaticResource Glyph}" FontSize="12" Text="&#xE81C;" Margin="0,0,6,0" />
+                      <TextBlock Text="History" VerticalAlignment="Center" />
+                    </StackPanel>
+                  </Button>
+                  <Button Style="{StaticResource SmallButton}" Content="Changes vs project" Command="{Binding ShowProjectChangesCommand}"
+                          ToolTip="What the drafts change in the open project, rung by rung - review before exporting" ToolTipService.ShowOnDisabled="True" />
                 </StackPanel>
               </DockPanel>
 
@@ -1164,7 +1499,7 @@
                               Visibility="{Binding Editor, Converter={StaticResource NullToVisible}}">
                     <TextBlock Text="Write logic for Studio 5000" FontSize="20" FontWeight="SemiBold" Foreground="{DynamicResource txt-0}" HorizontalAlignment="Center" />
                     <TextBlock Style="{StaticResource Muted}" TextWrapping="Wrap" TextAlignment="Center" Margin="0,8,0,16"
-                               Text="Draft data types, Add-On Instructions, programs, routines and tags here - or generate them from a template - and LogicControl checks them as you type and draws every rung. Export them as L5X to import into Studio 5000, or write them into a copy of the open project. On the Logic tab, 'Edit a copy' brings an existing routine here." />
+                               Text="Draft data types, Add-On Instructions, programs, routines and tags here - or generate them from a template - and LogicControl checks them as you type and draws every rung. Export them as L5X to import into Studio 5000, or write them into a copy of the open project. On the Logic tab, Edit (or double-click a rung) changes an existing routine; every step is kept in History, where any of them can be reviewed and gone back to." />
                     <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
                       <Button Style="{StaticResource PrimaryButton}" Content="From template..." Command="{Binding FromTemplateCommand}" />
                       <Button Content="New routine" Command="{Binding NewRoutineCommand}" Margin="6,0,0,0" />

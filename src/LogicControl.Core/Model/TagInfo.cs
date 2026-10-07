@@ -39,6 +39,12 @@ public sealed record TagInfo
     /// <summary>For a produced tag: how many consumers it allows.</summary>
     public int? ProduceCount { get; init; }
 
+    /// <summary>For a produced tag: the fastest RPI, in ms, a consumer may ask for.</summary>
+    public double? ProduceMinRpiMs { get; init; }
+
+    /// <summary>For a produced tag: the slowest RPI, in ms, a consumer may ask for.</summary>
+    public double? ProduceMaxRpiMs { get; init; }
+
     /// <summary>For a MESSAGE tag: the configuration of the message it sends.</summary>
     public MessageInfo? Message { get; init; }
 

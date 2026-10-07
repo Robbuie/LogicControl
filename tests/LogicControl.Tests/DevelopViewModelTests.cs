@@ -52,7 +52,7 @@ public class DevelopViewModelTests
         Assert.True(d.IsEmpty);
         Assert.False(d.CanExport);
 
-        main.EditRoutineCopyCommand.Execute(null);
+        main.EditRoutineCommand.Execute(null);
 
         Assert.Equal(MainViewModel.DevelopTab, main.SelectedTab);
         RoutineEditorViewModel editor = Assert.IsType<RoutineEditorViewModel>(d.Editor);
@@ -65,7 +65,7 @@ public class DevelopViewModelTests
     {
         MainViewModel main = await OpenLine3();
         DevelopViewModel d = main.Develop;
-        main.EditRoutineCopyCommand.Execute(null);
+        main.EditRoutineCommand.Execute(null);
         var editor = (RoutineEditorViewModel)d.Editor!;
         RungEditorViewModel rung = editor.Rungs.Items[0];
 

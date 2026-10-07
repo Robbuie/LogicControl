@@ -8,6 +8,7 @@ using LogicControl.App.Composition;
 using LogicControl.Core.Analysis;
 using LogicControl.Core.Assistant;
 using LogicControl.Core.Authoring;
+using LogicControl.Core.Authoring.History;
 using LogicControl.Core.Logic;
 
 namespace LogicControl.App.ViewModels.Assistant;
@@ -234,6 +235,11 @@ public sealed class AssistantViewModel : ObservableObject, IToolHost, IAssistant
         }
 
         Input = string.Empty;
+
+        // Anything typed in the Develop tab gets its own revision before Claude changes the
+        // drafts, so the history keeps the person's edit and Claude's apart.
+        _main.Develop.CommitPending();
+
         Add(new ChatMessageViewModel(ChatRole.User, text));
         _current = null;
         _lastDraft = null;
@@ -422,13 +428,13 @@ public sealed class AssistantViewModel : ObservableObject, IToolHost, IAssistant
 
     string? IToolHost.OpenProject(string path) => "Projects are opened from LogicControl's File menu.";
 
-    void IToolHost.DraftsChanged()
+    void IToolHost.DraftsChanged(string summary)
     {
         // Point the Develop tab at the newest draft so the user sees it appear.
         DevelopmentSet set = _main.Develop.Set;
         object? newest = set.Routines.LastOrDefault() as object ?? set.AddOnInstructions.LastOrDefault() as object ?? set.DataTypes.LastOrDefault();
         _lastDraft = newest;
-        _main.Develop.ChangedElsewhere(null, "Changed by the assistant - review before exporting.");
+        _main.Develop.ChangedElsewhere(null, "Changed by the assistant - review before exporting.", summary, RevisionAuthor.Claude);
     }
 
     /// <summary>Opens the Develop tab on what the assistant drafted last - the "Open in Develop" link.</summary>

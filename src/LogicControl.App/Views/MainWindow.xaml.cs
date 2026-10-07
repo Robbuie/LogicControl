@@ -62,7 +62,7 @@ public partial class MainWindow : Window
         DataContextChanged += OnDataContextChanged;
         Closing += OnClosing;
 
-        Key[] digits = [Key.D1, Key.D2, Key.D3, Key.D4, Key.D5, Key.D6, Key.D7];
+        Key[] digits = [Key.D1, Key.D2, Key.D3, Key.D4, Key.D5, Key.D6, Key.D7, Key.D8];
         for (int i = 0; i < digits.Length; i++)
         {
             int tab = i;
@@ -91,6 +91,42 @@ public partial class MainWindow : Window
         if (dialog.ShowDialog(this) == true)
         {
             _ = ViewModel?.OpenAsync(dialog.FileName);
+        }
+    }
+
+    /// <summary>Opens another controller's export beside the main one, on the System tab.</summary>
+    private void OnAddController(object sender, RoutedEventArgs e)
+    {
+        if (ViewModel is not { } vm)
+        {
+            return;
+        }
+
+        var dialog = new OpenFileDialog
+        {
+            Title = "Add a controller to the system view",
+            Filter = L5xFilter,
+            CheckFileExists = true,
+            Multiselect = true,
+        };
+
+        if (vm.FilePath is { } current && Path.GetDirectoryName(current) is { } folder && Directory.Exists(folder))
+        {
+            dialog.InitialDirectory = folder;
+        }
+
+        if (dialog.ShowDialog(this) == true)
+        {
+            vm.SelectedTab = MainViewModel.SystemTab;
+            _ = AddControllersAsync(vm, dialog.FileNames);
+        }
+    }
+
+    private static async Task AddControllersAsync(MainViewModel vm, IEnumerable<string> paths)
+    {
+        foreach (string path in paths)
+        {
+            await vm.SystemView.AddAsync(path).ConfigureAwait(true);
         }
     }
 
@@ -181,6 +217,7 @@ public partial class MainWindow : Window
             }
 
             vm.Assistant.PropertyChanged += OnAssistantChanged;
+            vm.LineFocusRequested += OnLineFocusRequested;
             SizeAssistant(vm.Assistant.IsOpen);
         }
     }
@@ -417,6 +454,70 @@ public partial class MainWindow : Window
         {
             Fail("Could not write the project copy", ex);
         }
+    }
+
+    /// <summary>Double-clicking a rung on the Logic tab edits it - the draft opens on that rung.</summary>
+    private void OnLogicLineMouseDown(object sender, MouseButtonEventArgs e)
+    {
+        if (e.ClickCount == 2 && sender is FrameworkElement { DataContext: LogicLineViewModel line } && ViewModel is { } vm
+            && vm.EditRungCommand.CanExecute(line))
+        {
+            vm.EditRungCommand.Execute(line);
+            e.Handled = true;
+        }
+    }
+
+    private void OnFindingDoubleClick(object sender, MouseButtonEventArgs e)
+    {
+        if (sender is DataGrid { SelectedItem: FindingRowViewModel row } && ViewModel is { } vm)
+        {
+            vm.OpenSiteCommand.Execute(row);
+        }
+    }
+
+    private void OnTagUseDoubleClick(object sender, MouseButtonEventArgs e)
+    {
+        if (sender is DataGrid { SelectedItem: TagUseRowViewModel row } && ViewModel is { } vm)
+        {
+            vm.OpenSiteCommand.Execute(row);
+        }
+    }
+
+    /// <summary>
+    /// Scrolls the Logic tab to a line a finding or cross-reference opened. The lists are
+    /// virtualised, so the row may not exist yet: the panel is asked to bring the index into view,
+    /// after the tab switch has laid the list out.
+    /// </summary>
+    private void OnLineFocusRequested(object? sender, int index)
+    {
+        Dispatcher.BeginInvoke(System.Windows.Threading.DispatcherPriority.Loaded, () =>
+        {
+            ItemsControl list = ViewModel?.LadderVisible == true ? LadderList : TextList;
+            if (FindChild<VirtualizingStackPanel>(list) is { } panel && index < list.Items.Count)
+            {
+                panel.BringIndexIntoViewPublic(index);
+            }
+        });
+    }
+
+    private static T? FindChild<T>(DependencyObject parent)
+        where T : DependencyObject
+    {
+        for (int i = 0; i < System.Windows.Media.VisualTreeHelper.GetChildrenCount(parent); i++)
+        {
+            DependencyObject child = System.Windows.Media.VisualTreeHelper.GetChild(parent, i);
+            if (child is T found)
+            {
+                return found;
+            }
+
+            if (FindChild<T>(child) is { } deeper)
+            {
+                return deeper;
+            }
+        }
+
+        return null;
     }
 
     private void OnIssueDoubleClick(object sender, MouseButtonEventArgs e)

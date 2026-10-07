@@ -24,10 +24,11 @@ public sealed class MainViewModel : ObservableObject
     public const int OverviewTab = 0;
     public const int HardwareTab = 1;
     public const int CommsTab = 2;
-    public const int TagsTab = 3;
-    public const int LogicTab = 4;
-    public const int FindingsTab = 5;
-    public const int DevelopTab = 6;
+    public const int SystemTab = 3;
+    public const int TagsTab = 4;
+    public const int LogicTab = 5;
+    public const int FindingsTab = 6;
+    public const int DevelopTab = 7;
 
     private ProjectAnalysis? _analysis;
     private string? _filePath;
@@ -43,6 +44,7 @@ public sealed class MainViewModel : ObservableObject
     private NavNodeViewModel? _selectedNode;
     private bool _showLadder = true;
     private bool _developing;
+    private bool _showOriginal;
     private string? _updateStatus;
 
     private IReadOnlyList<HardwareRowViewModel> _allHardware = [];
@@ -55,6 +57,7 @@ public sealed class MainViewModel : ObservableObject
     /// <param name="model">The assistant's model, as last chosen.</param>
     public MainViewModel(IApiKeyStore? keys = null, Func<HttpMessageHandler?>? handler = null, string? model = null)
     {
+        SystemView = new SystemViewModel(this);
         Assistant = new AssistantViewModel(this, keys ?? new MemoryKeyStore(), handler, model);
         Assistant.PropertyChanged += (_, e) =>
         {
@@ -69,18 +72,28 @@ public sealed class MainViewModel : ObservableObject
         CloseCommand = new RelayCommand(Close, () => _analysis is not null);
         ClearFilterCommand = new RelayCommand(() => Filter = string.Empty);
         ShowOperandCommand = new RelayParameterCommand(o => ShowOperand(o as string), o => o is string { Length: > 0 });
+        OpenSiteCommand = new RelayParameterCommand(o => OpenSite(o), o => SiteOf(o) is not null);
         StartDevelopingCommand = new RelayCommand(StartDeveloping);
-        EditRoutineCopyCommand = new RelayCommand(
+        EditRoutineCommand = new RelayCommand(() => EditRung(null), CanEditRoutine);
+        EditModuleCommand = new RelayParameterCommand(
+            o =>
+            {
+                if ((o as HardwareRowViewModel ?? _selectedModule) is { CanDraft: true } row && Develop.EditCopyOf(row.Node.Module))
+                {
+                    StartDeveloping();
+                }
+            },
+            o => (o as HardwareRowViewModel ?? _selectedModule) is { CanDraft: true });
+        EditRungCommand = new RelayParameterCommand(o => EditRung(o as LogicLineViewModel), _ => CanEditRoutine());
+        DiscardEditsCommand = new RelayCommand(
             () =>
             {
                 if (_routine?.Routine is { } r)
                 {
-                    Develop.EditCopyOf(r);
-                    StartDeveloping();
+                    Develop.DiscardEdits(r);
                 }
             },
-            () => _routine is { Routine.IsProtected: false } rv
-                && (rv.Routine.Language == RoutineLanguage.Ladder || rv.Routine.OwnerIsAoi));
+            () => _routine?.IsEdited == true);
         Develop.PropertyChanged += (_, e) =>
         {
             if (e.PropertyName is nameof(DevelopViewModel.Title))
@@ -88,6 +101,10 @@ public sealed class MainViewModel : ObservableObject
                 OnPropertyChanged(nameof(DevelopHeader));
             }
         };
+
+        // The Logic tab shows an edited routine as the draft has it, so it follows every change.
+        Develop.Edited += (_, _) => RefreshRoutine();
+        Develop.Revised += (_, _) => RefreshRoutine();
     }
 
     // ------------------------------------------------------------------ state
@@ -104,6 +121,9 @@ public sealed class MainViewModel : ObservableObject
     /// <summary>The Claude panel on the right of the window.</summary>
     public AssistantViewModel Assistant { get; }
 
+    /// <summary>The System tab: the controller drawn as a system, and the plant when more are added.</summary>
+    public SystemViewModel SystemView { get; }
+
     /// <summary>The Develop tab: drafts, their editors, checks and exports.</summary>
     public DevelopViewModel Develop { get; } = new();
 
@@ -119,8 +139,72 @@ public sealed class MainViewModel : ObservableObject
     /// <summary>Opens the Develop tab - with or without a project open.</summary>
     public RelayCommand StartDevelopingCommand { get; }
 
-    /// <summary>Copies the routine on the Logic tab into a draft, to change and import back.</summary>
-    public RelayCommand EditRoutineCopyCommand { get; }
+    /// <summary>
+    /// Edits the routine on the Logic tab in place: a draft of the same name replaces it on export
+    /// or merge, and the Logic tab shows the draft with every changed rung marked.
+    /// </summary>
+    public RelayCommand EditRoutineCommand { get; }
+
+    /// <summary>Drafts a change to a Generic Ethernet module - its RPI, sizes, address - in the Develop tab.</summary>
+    public RelayParameterCommand EditModuleCommand { get; }
+
+    /// <summary>Edits one rung - what double-clicking a rung on the Logic tab does.</summary>
+    public RelayParameterCommand EditRungCommand { get; }
+
+    /// <summary>Drops the draft that edits the routine on screen. The history keeps it.</summary>
+    public RelayCommand DiscardEditsCommand { get; }
+
+    /// <summary>The Logic tab shows the project's own routine even while it is being edited.</summary>
+    public bool ShowOriginal
+    {
+        get => _showOriginal;
+        set
+        {
+            if (SetProperty(ref _showOriginal, value))
+            {
+                RefreshRoutine(force: true);
+            }
+        }
+    }
+
+    /// <summary>The routine on screen has a draft editing it (whether or not the original is being shown).</summary>
+    public bool RoutineHasEdits => _routine is not null && Develop.EditOf(_routine.Routine) is not null;
+
+    private bool CanEditRoutine() =>
+        _routine is { Routine.IsProtected: false } rv
+        && (rv.Routine.Language == RoutineLanguage.Ladder || rv.Routine.OwnerIsAoi);
+
+    private void EditRung(LogicLineViewModel? line)
+    {
+        if (_routine?.Routine is not { } r)
+        {
+            return;
+        }
+
+        int? at = line is { IsRemoved: false } ? line.Location : null;
+        Develop.Edit(r, at);
+        StartDeveloping();
+    }
+
+    /// <summary>The routine as the Logic tab should draw it: the project's, or the draft that edits it.</summary>
+    private RoutineViewModel ViewOf(RoutineInfo routine) =>
+        new(routine, _analysis?.Project.AddOnInstructions, _showOriginal ? null : Develop.EditOf(routine));
+
+    private void RefreshRoutine(bool force = false)
+    {
+        if (_routine is not { } shown)
+        {
+            return;
+        }
+
+        bool edited = !_showOriginal && Develop.EditOf(shown.Routine) is not null;
+        if (force || edited || shown.IsEdited)
+        {
+            Routine = ViewOf(shown.Routine);
+        }
+
+        OnPropertyChanged(nameof(RoutineHasEdits));
+    }
 
     public void StartDeveloping()
     {
@@ -240,7 +324,10 @@ public sealed class MainViewModel : ObservableObject
             {
                 OnPropertyChanged(nameof(LadderVisible));
                 OnPropertyChanged(nameof(TextVisible));
-                EditRoutineCopyCommand.NotifyCanExecuteChanged();
+                OnPropertyChanged(nameof(RoutineHasEdits));
+                EditRoutineCommand.NotifyCanExecuteChanged();
+                EditRungCommand.NotifyCanExecuteChanged();
+                DiscardEditsCommand.NotifyCanExecuteChanged();
             }
         }
     }
@@ -254,7 +341,13 @@ public sealed class MainViewModel : ObservableObject
     public HardwareRowViewModel? SelectedModule
     {
         get => _selectedModule;
-        set => SetProperty(ref _selectedModule, value);
+        set
+        {
+            if (SetProperty(ref _selectedModule, value))
+            {
+                EditModuleCommand.NotifyCanExecuteChanged();
+            }
+        }
     }
 
     /// <summary>The navigator's selection. Setting it opens what it points at.</summary>
@@ -299,6 +392,18 @@ public sealed class MainViewModel : ObservableObject
         get => !_showLadder;
         set => ShowLadder = !value;
     }
+
+    /// <summary>
+    /// Opens a routine at a rung: a <see cref="FindingSite"/>, a finding row (its first site) or a
+    /// cross-reference row. What the findings list's links and a double-click on a use run.
+    /// </summary>
+    public RelayParameterCommand OpenSiteCommand { get; }
+
+    /// <summary>
+    /// Raised after <see cref="OpenSite"/> has put a routine on the Logic tab: the index in
+    /// <see cref="RoutineViewModel.Lines"/> to scroll into view. The window does the scrolling.
+    /// </summary>
+    public event EventHandler<int>? LineFocusRequested;
 
     /// <summary>Opens the tag an operand names - what clicking an operand in the ladder does.</summary>
     public RelayParameterCommand ShowOperandCommand { get; }
@@ -391,11 +496,21 @@ public sealed class MainViewModel : ObservableObject
         RoutineInfo? first = FirstRoutine(analysis.Project);
         if (first is not null)
         {
-            Routine = new RoutineViewModel(first, analysis.Project.AddOnInstructions);
+            Routine = ViewOf(first);
         }
 
         ApplyFilter();
+        SystemView.Rebuild();
         RaiseAll();
+    }
+
+    /// <summary>Shows a module on the Hardware tab - what clicking it in the system view does.</summary>
+    public void ShowModule(HardwareNode node)
+    {
+        ArgumentNullException.ThrowIfNull(node);
+        Filter = string.Empty;
+        SelectedModule = _allHardware.FirstOrDefault(r => ReferenceEquals(r.Node, node));
+        SelectedTab = HardwareTab;
     }
 
     /// <summary>Hides the error banner. The project on screen, if any, stays.</summary>
@@ -417,6 +532,7 @@ public sealed class MainViewModel : ObservableObject
         SelectedModule = null;
         Error = null;
         ApplyFilter();
+        SystemView.Rebuild();
         RaiseAll();
     }
 
@@ -428,18 +544,16 @@ public sealed class MainViewModel : ObservableObject
         switch (node.Target)
         {
             case RoutineInfo routine:
-                Routine = new RoutineViewModel(routine, _analysis?.Project.AddOnInstructions);
+                Routine = ViewOf(routine);
                 SelectedTab = LogicTab;
                 break;
 
             case HardwareNode hardware:
-                Filter = string.Empty;
-                SelectedModule = _allHardware.FirstOrDefault(r => ReferenceEquals(r.Node, hardware));
-                SelectedTab = HardwareTab;
+                ShowModule(hardware);
                 break;
 
             case AoiInfo aoi when aoi.Routines.Count > 0:
-                Routine = new RoutineViewModel(aoi.Routines[0], _analysis?.Project.AddOnInstructions);
+                Routine = ViewOf(aoi.Routines[0]);
                 SelectedTab = LogicTab;
                 break;
 
@@ -451,6 +565,50 @@ public sealed class MainViewModel : ObservableObject
                 break;
         }
     }
+
+    /// <summary>
+    /// Opens the routine a site names on the Logic tab, marks the rung and asks the window to
+    /// scroll to it. Returns false when the routine is not in the open project.
+    /// </summary>
+    public bool OpenSite(object? target)
+    {
+        if (SiteOf(target) is not { } site || _analysis is null)
+        {
+            return false;
+        }
+
+        RoutineInfo? routine = _analysis.Project.AllRoutines
+            .FirstOrDefault(r => string.Equals(r.QualifiedName, site.Routine, StringComparison.OrdinalIgnoreCase));
+        if (routine is null)
+        {
+            return false;
+        }
+
+        if (_routine is null || !ReferenceEquals(_routine.Routine, routine))
+        {
+            Routine = ViewOf(routine);
+        }
+
+        // Structured text cannot be drawn, and a highlighted ST line needs the text view; a rung
+        // keeps whichever view the person chose.
+        int index = _routine!.Highlight(site.Location);
+        SelectedTab = LogicTab;
+        if (index >= 0)
+        {
+            LineFocusRequested?.Invoke(this, index);
+        }
+
+        return true;
+    }
+
+    private static FindingSite? SiteOf(object? target) => target switch
+    {
+        FindingSite site => site,
+        FindingRowViewModel row => row.Sites.FirstOrDefault(),
+        TagUseRowViewModel use when use.Use.Routine != "(alias)" => FindingSite.Of(use.Use),
+        Core.Logic.TagUse use when use.Routine != "(alias)" => FindingSite.Of(use),
+        _ => null,
+    };
 
     /// <summary>
     /// Shows the tag an operand refers to on the Tags tab: <c>Conveyor.Speed[2]</c> opens

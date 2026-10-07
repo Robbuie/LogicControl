@@ -610,7 +610,7 @@ public sealed class LogicTools(IToolHost host)
 
         if (removed > 0)
         {
-            host.DraftsChanged();
+            host.DraftsChanged($"Removed {kind} draft {name}");
         }
 
         return removed == 0 ? ToolResult.Fail($"No {kind} draft named '{name}'.") : ToolResult.Ok($"Removed {removed} {kind} draft(s).", changedDrafts: true);
@@ -619,7 +619,7 @@ public sealed class LogicTools(IToolHost host)
     /// <summary>After a draft tool: tell the host, then report the checks for what was just written.</summary>
     private ToolResult Drafted(string summary, params object[] targets)
     {
-        host.DraftsChanged();
+        host.DraftsChanged(summary);
         IReadOnlyList<DraftIssue> issues = DraftChecker.Check(host.Drafts, host.Analysis?.Project)
             .Where(i => i.Target is not null && targets.Contains(i.Target))
             .ToList();
@@ -851,8 +851,11 @@ public interface IToolHost
     /// <summary>Opens a project; returns why not, or null.</summary>
     string? OpenProject(string path);
 
-    /// <summary>Called after a tool changed the drafts, so the Develop tab can refresh and save.</summary>
-    void DraftsChanged();
+    /// <summary>
+    /// Called after a tool changed the drafts, so the Develop tab can refresh and save.
+    /// <paramref name="summary"/> says what the tool did - it becomes the revision's label.
+    /// </summary>
+    void DraftsChanged(string summary);
 }
 
 /// <summary>A tool: name, what it is for, its input schema, and whether it changes the drafts.</summary>

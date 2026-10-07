@@ -1753,4 +1753,118 @@
     </Setter>
   </Style>
 
+  <!-- ===================================================================== -->
+  <!--  Links, marked lines, changes                                         -->
+  <!-- ===================================================================== -->
+
+  <!-- A button that reads as a link: the findings list's "Where" entries, the diff's item names. -->
+  <Style x:Key="LinkButton" TargetType="Button">
+    <Setter Property="Foreground" Value="{DynamicResource accent-text}" />
+    <Setter Property="Cursor" Value="Hand" />
+    <Setter Property="FontFamily" Value="{DynamicResource font}" />
+    <Setter Property="FontSize" Value="{DynamicResource ui-font}" />
+    <Setter Property="HorizontalAlignment" Value="Left" />
+    <Setter Property="Template">
+      <Setter.Value>
+        <ControlTemplate TargetType="Button">
+          <TextBlock x:Name="text" Text="{TemplateBinding Content}" TextWrapping="Wrap" Background="Transparent" />
+          <ControlTemplate.Triggers>
+            <Trigger Property="IsMouseOver" Value="True">
+              <Setter TargetName="text" Property="TextDecorations" Value="Underline" />
+            </Trigger>
+            <Trigger Property="IsEnabled" Value="False">
+              <Setter Property="Foreground" Value="{DynamicResource txt-2}" />
+            </Trigger>
+          </ControlTemplate.Triggers>
+        </ControlTemplate>
+      </Setter.Value>
+    </Setter>
+  </Style>
+
+  <!-- One rung or ST line on the Logic tab. Marked when a finding or a cross-reference opened it,
+       and edged when the routine is being edited and this line changed. -->
+  <Style x:Key="LogicLineRow" TargetType="Border">
+    <Setter Property="BorderBrush" Value="{DynamicResource line-soft}" />
+    <Setter Property="BorderThickness" Value="0,0,0,1" />
+    <Setter Property="Background" Value="Transparent" />
+    <Style.Triggers>
+      <DataTrigger Binding="{Binding IsRemoved}" Value="True">
+        <Setter Property="Opacity" Value="0.45" />
+      </DataTrigger>
+      <DataTrigger Binding="{Binding IsHighlighted}" Value="True">
+        <Setter Property="Background" Value="{DynamicResource accent-soft}" />
+      </DataTrigger>
+    </Style.Triggers>
+  </Style>
+
+  <!-- The bar in a line's gutter that says how it differs from the project: added, changed, removed. -->
+  <Style x:Key="ChangeBar" TargetType="Border">
+    <Setter Property="Width" Value="3" />
+    <Setter Property="CornerRadius" Value="1.5" />
+    <Setter Property="HorizontalAlignment" Value="Left" />
+    <Setter Property="Background" Value="Transparent" />
+    <Style.Triggers>
+      <DataTrigger Binding="{Binding Change}" Value="Added">
+        <Setter Property="Background" Value="{DynamicResource good}" />
+      </DataTrigger>
+      <DataTrigger Binding="{Binding Change}" Value="Changed">
+        <Setter Property="Background" Value="{DynamicResource warn}" />
+      </DataTrigger>
+      <DataTrigger Binding="{Binding Change}" Value="Removed">
+        <Setter Property="Background" Value="{DynamicResource bad}" />
+      </DataTrigger>
+    </Style.Triggers>
+  </Style>
+
+  <!-- One line of a diff: + added, - removed, ~ changed, a heading, or unchanged context. -->
+  <Style x:Key="DiffLineText" TargetType="TextBlock" BasedOn="{StaticResource MonoText}">
+    <Setter Property="Foreground" Value="{DynamicResource txt-1}" />
+    <Setter Property="TextWrapping" Value="Wrap" />
+    <Setter Property="Padding" Value="6,1" />
+    <Style.Triggers>
+      <DataTrigger Binding="{Binding Kind}" Value="Added">
+        <Setter Property="Foreground" Value="{DynamicResource good}" />
+        <Setter Property="Background" Value="{DynamicResource row-good}" />
+      </DataTrigger>
+      <DataTrigger Binding="{Binding Kind}" Value="Removed">
+        <Setter Property="Foreground" Value="{DynamicResource bad}" />
+        <Setter Property="Background" Value="{DynamicResource row-bad}" />
+        <Setter Property="TextDecorations" Value="Strikethrough" />
+      </DataTrigger>
+      <DataTrigger Binding="{Binding Kind}" Value="Changed">
+        <Setter Property="Foreground" Value="{DynamicResource warn}" />
+        <Setter Property="Background" Value="{DynamicResource row-warn}" />
+      </DataTrigger>
+      <DataTrigger Binding="{Binding Kind}" Value="Context">
+        <Setter Property="Foreground" Value="{DynamicResource txt-2}" />
+      </DataTrigger>
+      <DataTrigger Binding="{Binding Kind}" Value="Heading">
+        <Setter Property="Foreground" Value="{DynamicResource txt-0}" />
+        <Setter Property="FontWeight" Value="SemiBold" />
+        <Setter Property="FontFamily" Value="{DynamicResource font}" />
+        <Setter Property="Padding" Value="0,8,0,3" />
+      </DataTrigger>
+    </Style.Triggers>
+  </Style>
+
+  <!-- The system view's drawing. Like LadderRung: OnRender cannot hold a DynamicResource, so the
+       colours arrive as properties bound here. -->
+  <Style x:Key="Topology" TargetType="views:TopologyView">
+    <Setter Property="BoxFill" Value="{DynamicResource bg-2}" />
+    <Setter Property="BoxLine" Value="{DynamicResource line}" />
+    <Setter Property="ControllerFill" Value="{DynamicResource accent-soft}" />
+    <Setter Property="AccentBrush" Value="{DynamicResource accent-on-chrome}" />
+    <Setter Property="InkBrush" Value="{DynamicResource txt-0}" />
+    <Setter Property="MutedBrush" Value="{DynamicResource txt-2}" />
+    <Setter Property="TreeBrush" Value="{DynamicResource bg-4}" />
+    <Setter Property="IoBrush" Value="{DynamicResource txt-2}" />
+    <Setter Property="ProducedBrush" Value="{DynamicResource good}" />
+    <Setter Property="MessageBrush" Value="{DynamicResource info}" />
+    <Setter Property="WarnBrush" Value="{DynamicResource warn}" />
+    <Setter Property="HoverFill" Value="{DynamicResource bg-3}" />
+    <Setter Property="FontFamily" Value="{DynamicResource font}" />
+    <Setter Property="MonoFamily" Value="{DynamicResource mono}" />
+    <Setter Property="FontSize" Value="{DynamicResource ui-font}" />
+  </Style>
+
 </ResourceDictionary>

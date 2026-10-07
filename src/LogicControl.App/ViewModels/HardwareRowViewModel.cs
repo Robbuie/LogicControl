@@ -60,6 +60,9 @@ public sealed class HardwareRowViewModel
 
     public HardwareNode Node { get; }
 
+    /// <summary>A Generic Ethernet module - one the Develop tab can draft a change to.</summary>
+    public bool CanDraft => Node.Module.IsGenericEthernet;
+
     public string Name { get; }
 
     public string Catalog { get; }

@@ -136,6 +136,57 @@ public static class L5xWriter
         return e;
     }
 
+    /// <summary>
+    /// A Generic Ethernet <c>&lt;Module&gt;</c>, shaped like Studio 5000's own export of one: keying
+    /// disabled (a generic module has no identity to check), one Ethernet port upstream, and one
+    /// connection. No tag data is written - Studio 5000 creates the module's I/O tags, zeroed.
+    /// Sizes go into the file in bytes; see <see cref="ModuleFormats"/> for what is unverified.
+    /// </summary>
+    public static XElement Module(ModuleDraft module)
+    {
+        ArgumentNullException.ThrowIfNull(module);
+        string format = ModuleFormats.IsKnown(module.Format) ? module.Format : ModuleFormats.Dint;
+        int rpi = (int)Math.Round(module.RpiMs * 1000.0);
+
+        var connection = new XElement("Connection",
+            new XAttribute("Name", "StandardConnection"),
+            new XAttribute("RPI", rpi.ToString(CultureInfo.InvariantCulture)),
+            new XAttribute("Type", module.OutputSize > 0 ? "InputOutput" : "Input"),
+            new XAttribute("EventID", "0"),
+            new XAttribute("ProgrammaticallySendEventTrigger", "false"),
+            new XAttribute("InputCxnPoint", module.InputInstance.ToString(CultureInfo.InvariantCulture)),
+            new XAttribute("OutputCxnPoint", module.OutputInstance.ToString(CultureInfo.InvariantCulture)),
+            new XAttribute("InputSize", ModuleFormats.Bytes(module.InputSize, format).ToString(CultureInfo.InvariantCulture)),
+            new XAttribute("OutputSize", ModuleFormats.Bytes(module.OutputSize, format).ToString(CultureInfo.InvariantCulture)),
+            new XAttribute("Unicast", module.Unicast ? "true" : "false"));
+
+        return new XElement("Module",
+            new XAttribute("Name", module.Name),
+            new XAttribute("CatalogNumber", "ETHERNET-MODULE"),
+            new XAttribute("Vendor", "0"),
+            new XAttribute("ProductType", "0"),
+            new XAttribute("ProductCode", "0"),
+            new XAttribute("Major", "1"),
+            new XAttribute("Minor", "1"),
+            new XAttribute("ParentModule", module.ParentModule),
+            new XAttribute("ParentModPortId", module.ParentPortId.ToString(CultureInfo.InvariantCulture)),
+            new XAttribute("Inhibited", "false"),
+            new XAttribute("MajorFault", "false"),
+            DescriptionOf(module.Description),
+            new XElement("EKey", new XAttribute("State", "Disabled")),
+            new XElement("Ports",
+                new XElement("Port",
+                    new XAttribute("Id", "2"),
+                    new XAttribute("Address", module.IpAddress),
+                    new XAttribute("Type", "Ethernet"),
+                    new XAttribute("Upstream", "true"))),
+            new XElement("Communications",
+                new XAttribute("CommMethod", ModuleFormats.CommMethod(format).ToString(CultureInfo.InvariantCulture)),
+                new XAttribute("ConfigCxnPoint", module.ConfigInstance.ToString(CultureInfo.InvariantCulture)),
+                new XAttribute("ConfigSize", module.ConfigSize.ToString(CultureInfo.InvariantCulture)),
+                new XElement("Connections", connection)));
+    }
+
     /// <summary>A ladder <c>&lt;Routine&gt;</c>.</summary>
     public static XElement Routine(string name, string? description, IEnumerable<RungDraft> rungs) =>
         new("Routine",

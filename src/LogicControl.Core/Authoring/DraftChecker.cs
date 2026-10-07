@@ -32,6 +32,12 @@ public static partial class DraftChecker
         CheckDuplicates(set.Tags, t => t.QualifiedName, "tag", issues);
         CheckDuplicates(set.Programs, p => p.Name, "program", issues);
         CheckDuplicates(set.Routines, r => r.QualifiedName, "routine", issues);
+        CheckDuplicates(set.Modules, m => m.Name, "module", issues);
+
+        foreach (ModuleDraft module in set.Modules)
+        {
+            CheckModule(module, set, project, issues);
+        }
 
         foreach (UdtDraft udt in set.DataTypes)
         {
@@ -333,6 +339,108 @@ public static partial class DraftChecker
             {
                 issues.Add(issue with { Subject = subject, Target = aoi, Rung = i });
             }
+        }
+    }
+
+    /// <summary>Most a standard (not Large) Ethernet/IP connection carries each way, in bytes.</summary>
+    private const int StandardConnectionBytes = 500;
+
+    private static void CheckModule(ModuleDraft module, DevelopmentSet set, PlcProject? project, List<DraftIssue> issues)
+    {
+        string subject = $"Module {module.Name}";
+        Name(module.Name, subject, module, issues);
+
+        static bool Same(string? a, string? b) => string.Equals(a, b, StringComparison.OrdinalIgnoreCase);
+
+        if (project?.Modules.FirstOrDefault(m => Same(m.Name, module.Name)) is { } existing)
+        {
+            if (existing.IsGenericEthernet)
+            {
+                issues.Add(DraftIssue.Warning(subject, $"Replaces the Generic Ethernet module {existing.Name} already in the project.", module));
+            }
+            else
+            {
+                issues.Add(DraftIssue.Error(subject,
+                    $"The project already has a {existing.CatalogNumber} named {existing.Name}. Only Generic Ethernet modules can be written - pick another name.",
+                    module));
+            }
+        }
+
+        // The parent: in the project's I/O tree with an Ethernet port, or another module draft.
+        ModuleInfo? parent = project?.Modules.FirstOrDefault(m => Same(m.Name, module.ParentModule));
+        bool parentDrafted = set.Modules.Any(m => !ReferenceEquals(m, module) && Same(m.Name, module.ParentModule));
+        if (parent is null && !parentDrafted)
+        {
+            if (project is null)
+            {
+                issues.Add(DraftIssue.Warning(subject, $"Parent {module.ParentModule} cannot be checked without a project open.", module));
+            }
+            else
+            {
+                issues.Add(DraftIssue.Error(subject, $"Parent {module.ParentModule} is not in the I/O tree.", module));
+            }
+        }
+        else if (parent is not null && !parent.Ports.Any(p => p.IsEthernet && p.Id == module.ParentPortId))
+        {
+            issues.Add(DraftIssue.Error(subject,
+                $"{parent.Name} has no Ethernet port {module.ParentPortId.ToString(CultureInfo.InvariantCulture)}"
+                + (parent.Ports.FirstOrDefault(p => p.IsEthernet) is { } eth ? $" - its Ethernet port is {eth.Id.ToString(CultureInfo.InvariantCulture)}." : " - it is not an Ethernet bridge."),
+                module));
+        }
+
+        if (!System.Net.IPAddress.TryParse(module.IpAddress, out System.Net.IPAddress? ip)
+            || ip.AddressFamily != System.Net.Sockets.AddressFamily.InterNetwork
+            || module.IpAddress.Count(c => c == '.') != 3)
+        {
+            issues.Add(DraftIssue.Error(subject, $"'{module.IpAddress}' is not an IPv4 address.", module));
+        }
+        else
+        {
+            string? clash = project?.Modules.Where(m => !Same(m.Name, module.Name) && m.IpAddress == module.IpAddress).Select(m => m.Name).FirstOrDefault()
+                ?? set.Modules.Where(m => !ReferenceEquals(m, module) && m.IpAddress == module.IpAddress).Select(m => m.Name).FirstOrDefault();
+            if (clash is not null)
+            {
+                issues.Add(DraftIssue.Warning(subject, $"{clash} is already at {module.IpAddress}. Only one of them can connect.", module));
+            }
+        }
+
+        if (!ModuleFormats.IsKnown(module.Format))
+        {
+            issues.Add(DraftIssue.Error(subject, $"Comm format '{module.Format}' is not one of {string.Join(", ", ModuleFormats.All)}.", module));
+            return;
+        }
+
+        if (module.InputSize < 0 || module.OutputSize < 0 || module.ConfigSize < 0)
+        {
+            issues.Add(DraftIssue.Error(subject, "Sizes cannot be negative.", module));
+        }
+
+        if (module.InputSize == 0)
+        {
+            issues.Add(DraftIssue.Warning(subject, "The input size is 0 - the device sends nothing back, not even a heartbeat.", module));
+        }
+
+        foreach ((string what, int elements) in new[] { ("input", module.InputSize), ("output", module.OutputSize) })
+        {
+            int bytes = ModuleFormats.Bytes(elements, module.Format);
+            if (bytes > StandardConnectionBytes)
+            {
+                issues.Add(DraftIssue.Warning(subject,
+                    $"The {what} is {bytes.ToString(CultureInfo.InvariantCulture)} bytes; a standard connection carries {StandardConnectionBytes.ToString(CultureInfo.InvariantCulture)}. "
+                    + "Check the device's manual for its assembly size.",
+                    module));
+            }
+        }
+
+        if (module.InputInstance <= 0 || (module.OutputSize > 0 && module.OutputInstance <= 0))
+        {
+            issues.Add(DraftIssue.Warning(subject, "An assembly instance is 0. Take the instance numbers from the device's EDS file or manual.", module));
+        }
+
+        if (module.RpiMs < 1 || module.RpiMs > 750)
+        {
+            issues.Add(DraftIssue.Warning(subject,
+                $"An RPI of {module.RpiMs.ToString("0.###", CultureInfo.InvariantCulture)} ms is outside the usual 1-750 ms.", module));
         }
     }
 

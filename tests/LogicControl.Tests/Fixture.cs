@@ -11,7 +11,12 @@ internal static class Fixture
 
     private static readonly Lazy<ProjectAnalysis> Line3Analysis = new(() => ProjectAnalysis.Analyse(Line3Project.Value));
 
+    private static readonly Lazy<ProjectAnalysis> RobotAnalysis = new(() => ProjectAnalysis.Open(PathOf("RobotCell.L5X")));
+
     public static PlcProject Line3 => Line3Project.Value;
+
+    /// <summary>The robot cell controller Line3 talks to - opened beside it for the system view.</summary>
+    public static ProjectAnalysis RobotCellAnalysed => RobotAnalysis.Value;
 
     public static ProjectAnalysis Line3Analysed => Line3Analysis.Value;
 

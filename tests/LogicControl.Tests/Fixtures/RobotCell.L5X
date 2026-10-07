@@ -1,0 +1,119 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<!--
+  The robot cell controller that Line3.L5X talks to: the far end of Line3's Robot_PLC module, its
+  Robot_Read message and its Robot_Heartbeat consumed tag. Hand-written, for the system view - the
+  two files are opened together and joined. Deliberate faults that only show when both are open are
+  marked PLANT with the rule they trip.
+-->
+<RSLogix5000Content SchemaRevision="1.0" SoftwareRevision="33.00" TargetName="Robot_PLC" TargetType="Controller" ContainsContext="false" ExportDate="Wed Oct 07 09:00:00 2026" ExportOptions="NoRawData L5KData DecoratedData ForceProtectedEncoding AllProjDocTrans">
+<Controller Use="Target" Name="Robot_PLC" ProcessorType="1756-L83E" MajorRev="33" MinorRev="11" TimeSlice="20" ShareUnusedTimeSlice="1" ProjectCreationDate="Mon Jan 06 08:00:00 2025" LastModifiedDate="Wed Oct 07 08:55:00 2026" SFCExecutionControl="CurrentActive" SFCRestartPosition="MostRecent" SFCLastScan="DontScan" ProjectSN="16#0000_0000" MatchProjectToController="false" CanUseRPIFromProducer="false" InhibitAutomaticFirmwareUpdate="0" PassThroughConfiguration="EnabledWithAppend" DownloadProjectDocumentationAndExtendedProperties="true" DownloadProjectCustomProperties="true" ReportMinorOverflow="false">
+<Description>
+<![CDATA[Robot cell controller]]>
+</Description>
+<DataTypes>
+<DataType Name="UDT_RobotStatus" Family="NoFamily" Class="User">
+<Members>
+<Member Name="ZZZZZZZZZZUDT_RobotS0" DataType="SINT" Dimension="0" Radix="Decimal" Hidden="true" ExternalAccess="Read/Write"/>
+<Member Name="Ready" DataType="BIT" Dimension="0" Radix="Decimal" Hidden="false" Target="ZZZZZZZZZZUDT_RobotS0" BitNumber="0" ExternalAccess="Read/Write"/>
+<Member Name="Fault" DataType="BIT" Dimension="0" Radix="Decimal" Hidden="false" Target="ZZZZZZZZZZUDT_RobotS0" BitNumber="1" ExternalAccess="Read/Write"/>
+<Member Name="CycleCount" DataType="DINT" Dimension="0" Radix="Decimal" Hidden="false" ExternalAccess="Read/Write"/>
+</Members>
+</DataType>
+</DataTypes>
+<Modules>
+<Module Name="Local" CatalogNumber="1756-L83E" Vendor="1" ProductType="14" ProductCode="166" Major="33" Minor="11" ParentModule="Local" ParentModPortId="1" Inhibited="false" MajorFault="true">
+<EKey State="Disabled"/>
+<Ports>
+<Port Id="1" Address="0" Type="ICP" Upstream="false">
+<Bus Size="4"/>
+</Port>
+<Port Id="2" Address="192.168.10.5" Type="Ethernet" Upstream="false">
+<Bus/>
+</Port>
+</Ports>
+</Module>
+<!-- Line 3's controller, reached through its EN2T: the producer of Line_Status. -->
+<Module Name="Line3_ENBT" CatalogNumber="1756-EN2T" Vendor="1" ProductType="12" ProductCode="166" Major="11" Minor="1" ParentModule="Local" ParentModPortId="2" Inhibited="false" MajorFault="false">
+<EKey State="CompatibleModule"/>
+<Ports>
+<Port Id="1" Address="0" Type="ICP" Upstream="false">
+<Bus Size="10"/>
+</Port>
+<Port Id="2" Address="192.168.10.1" Type="Ethernet" Upstream="true"/>
+</Ports>
+</Module>
+<Module Name="Line3_PLC" CatalogNumber="1756-L83E" Vendor="1" ProductType="14" ProductCode="166" Major="33" Minor="11" ParentModule="Line3_ENBT" ParentModPortId="1" Inhibited="false" MajorFault="false">
+<EKey State="CompatibleModule"/>
+<Ports>
+<Port Id="1" Address="0" Type="ICP" Upstream="true"/>
+</Ports>
+</Module>
+<!-- PLANT LC-PLT-006: Line3 also owns an output connection to the checkweigher -->
+<Module Name="Scale_Shared" CatalogNumber="ETHERNET-MODULE" Vendor="0" ProductType="0" ProductCode="0" Major="1" Minor="1" ParentModule="Local" ParentModPortId="2" Inhibited="false" MajorFault="false">
+<EKey State="Disabled"/>
+<Ports>
+<Port Id="2" Address="192.168.10.50" Type="Ethernet" Upstream="true"/>
+</Ports>
+<Communications CommMethod="1073741825" ConfigCxnPoint="102" ConfigSize="0">
+<Connections>
+<Connection Name="StandardConnection" RPI="20000" Type="InputOutput" EventID="0" InputCxnPoint="101" OutputCxnPoint="100" InputSize="20" OutputSize="4" Unicast="true"/>
+</Connections>
+</Communications>
+</Module>
+</Modules>
+<Tags>
+<Tag Name="Robot_Status" TagType="Base" DataType="UDT_RobotStatus" Constant="false" ExternalAccess="Read/Write"/>
+<!-- PLANT LC-PLT-003 (Line3 consumes it as a DINT) and LC-PLT-002 (Line3 asks every 50 ms; 40 is the slowest allowed) -->
+<Tag Name="Heartbeat" TagType="Produced" DataType="INT" Radix="Decimal" ExternalAccess="Read/Write">
+<ProduceInfo ProduceCount="1" PLCdataType="false" ProgrammaticallySendEventTrigger="false" UnicastPermitted="true" MinimumRPI="0.200" MaximumRPI="40.000" DefaultRPI="20.000"/>
+</Tag>
+<Tag Name="Line_Status_In" TagType="Consumed" DataType="DINT" Radix="Decimal" ExternalAccess="Read Only">
+<ConsumeInfo Producer="Line3_PLC" RemoteTag="Line_Status" RemoteInstance="0" RPI="20" Unicast="true"/>
+</Tag>
+<!-- PLANT LC-PLT-001: Line3 has no tag Line_State -->
+<Tag Name="Line_State_In" TagType="Consumed" DataType="DINT" Radix="Decimal" ExternalAccess="Read Only">
+<ConsumeInfo Producer="Line3_PLC" RemoteTag="Line_State" RemoteInstance="0" RPI="20" Unicast="true"/>
+</Tag>
+<Tag Name="Cmd" TagType="Base" DataType="DINT" Radix="Decimal" Constant="false" ExternalAccess="Read/Write"/>
+<!-- PLANT LC-PLT-005: Line3 has no tag Robot_Cmd -->
+<Tag Name="Cmd_Write" TagType="Base" DataType="MESSAGE" ExternalAccess="Read/Write">
+<Data Format="Message">
+<MessageParameters MessageType="CIP Data Table Write" RequestedLength="1" ConnectedFlag="1" ConnectionPath="2, 192.168.10.1, 1, 0" CommTypeCode="0" ServiceCode="16#004d" ObjectType="16#0000" TargetObject="0" AttributeNumber="16#0000" LocalIndex="0" LocalElement="Cmd" RemoteIndex="0" RemoteElement="Robot_Cmd" CacheConnections="TRUE" LargePacketUsage="FALSE"/>
+</Data>
+</Tag>
+</Tags>
+<Programs>
+<Program Name="Cell" TestEdits="false" MainRoutineName="MainRoutine" Disabled="false" UseAsFolder="false">
+<Tags/>
+<Routines>
+<Routine Name="MainRoutine" Type="RLL">
+<RLLContent>
+<Rung Number="0" Type="N">
+<Text>
+<![CDATA[ADD(Heartbeat,1,Heartbeat);]]>
+</Text>
+</Rung>
+<Rung Number="1" Type="N">
+<Text>
+<![CDATA[XIO(Cmd_Write.EN)MSG(Cmd_Write);]]>
+</Text>
+</Rung>
+<Rung Number="2" Type="N">
+<Text>
+<![CDATA[XIC(Cmd_Write.ER)MOV(Line_Status_In,Cmd)MOV(Line_State_In,Robot_Status.CycleCount)XIC(Scale_Shared:I.Data[0].0)OTE(Scale_Shared:O.Data[0].0);]]>
+</Text>
+</Rung>
+</RLLContent>
+</Routine>
+</Routines>
+</Program>
+</Programs>
+<Tasks>
+<Task Name="MainTask" Type="CONTINUOUS" Priority="10" Watchdog="500" DisableUpdateOutputs="false" InhibitTask="false">
+<ScheduledPrograms>
+<ScheduledProgram Name="Cell"/>
+</ScheduledPrograms>
+</Task>
+</Tasks>
+</Controller>
+</RSLogix5000Content>

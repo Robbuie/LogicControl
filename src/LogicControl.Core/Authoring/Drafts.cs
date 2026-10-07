@@ -203,3 +203,83 @@ public sealed class AoiLocalTagDraft
         Description = description;
     }
 }
+
+/// <summary>
+/// A Generic Ethernet module (ETHERNET-MODULE) to add under an Ethernet bridge in the I/O tree:
+/// a device the controller owns a connection to by assembly instance - a scale, a valve bank, a
+/// vision sensor. Sizes are in elements of <see cref="Format"/>, the way Studio 5000's dialog asks.
+/// </summary>
+public sealed class ModuleDraft
+{
+    public string Name { get; set; } = string.Empty;
+
+    public string? Description { get; set; }
+
+    /// <summary>The Ethernet bridge it hangs off: Local for the controller's own port, or an EN2T etc.</summary>
+    public string ParentModule { get; set; } = "Local";
+
+    /// <summary>The parent's Ethernet port - 2 on a 1756-EN2T and on the L8x's embedded port.</summary>
+    public int ParentPortId { get; set; } = 2;
+
+    public string IpAddress { get; set; } = string.Empty;
+
+    /// <summary>Comm format: one of <see cref="ModuleFormats.All"/>.</summary>
+    public string Format { get; set; } = ModuleFormats.Dint;
+
+    public int InputInstance { get; set; } = 100;
+
+    public int InputSize { get; set; } = 1;
+
+    public int OutputInstance { get; set; } = 150;
+
+    public int OutputSize { get; set; } = 1;
+
+    public int ConfigInstance { get; set; } = 1;
+
+    /// <summary>Configuration size in bytes. 0 for most devices.</summary>
+    public int ConfigSize { get; set; }
+
+    public double RpiMs { get; set; } = 20;
+
+    public bool Unicast { get; set; } = true;
+}
+
+/// <summary>
+/// The Generic Ethernet comm formats LogicControl writes, and how each is stored in L5X.
+///
+/// <para><b>Unverified against Studio 5000.</b> The CommMethod numbers and the byte sizes below are
+/// LogicControl's reading of exports, not Rockwell documentation; the first real import of a
+/// merged project (PLAN.md step A) confirms them. A wrong value shows up as Studio 5000 refusing
+/// the module or showing a different format - fix the table and its test.</para>
+/// </summary>
+public static class ModuleFormats
+{
+    public const string Dint = "Data - DINT";
+    public const string Int = "Data - INT";
+    public const string Sint = "Data - SINT";
+    public const string Real = "Data - REAL";
+
+    public static IReadOnlyList<string> All { get; } = [Dint, Int, Sint, Real];
+
+    private static readonly Dictionary<string, (int CommMethod, int Bytes)> Table = new(StringComparer.OrdinalIgnoreCase)
+    {
+        [Dint] = (0x40000001, 4),
+        [Int] = (0x40000002, 2),
+        [Sint] = (0x40000003, 1),
+        [Real] = (0x40000004, 4),
+    };
+
+    public static bool IsKnown(string? format) => format is not null && Table.ContainsKey(format);
+
+    public static int CommMethod(string format) => Table.TryGetValue(format, out var f) ? f.CommMethod : Table[Dint].CommMethod;
+
+    public static int ElementBytes(string format) => Table.TryGetValue(format, out var f) ? f.Bytes : 4;
+
+    /// <summary>The format a CommMethod number means; Data - DINT when it is not one of these.</summary>
+    public static string FromCommMethod(int? commMethod) =>
+        Table.FirstOrDefault(p => p.Value.CommMethod == commMethod).Key ?? Dint;
+
+    public static int Bytes(int elements, string format) => elements * ElementBytes(format);
+
+    public static int Elements(int bytes, string format) => bytes / Math.Max(1, ElementBytes(format));
+}

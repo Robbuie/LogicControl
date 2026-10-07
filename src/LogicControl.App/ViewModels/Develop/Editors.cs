@@ -823,3 +823,129 @@ public sealed class TemplateSettingRowViewModel(string key, string label, string
         set => SetProperty(ref _value, value ?? string.Empty);
     }
 }
+
+/// <summary>A Generic Ethernet module: where it sits, its address, its comm format and assemblies.</summary>
+public sealed class ModuleEditorViewModel(DevelopViewModel owner, ModuleDraft module) : ObservableObject
+{
+    public string Heading => "Generic Ethernet module";
+
+    public string Name
+    {
+        get => module.Name;
+        set => Edit(() => module.Name = value?.Trim() ?? string.Empty);
+    }
+
+    public string? Description
+    {
+        get => module.Description;
+        set => Edit(() => module.Description = string.IsNullOrWhiteSpace(value) ? null : value);
+    }
+
+    public string ParentModule
+    {
+        get => module.ParentModule;
+        set => Edit(() =>
+        {
+            module.ParentModule = value?.Trim() ?? string.Empty;
+            if (owner.Project?.Modules.FirstOrDefault(m => DevelopViewModel.Same(m.Name, module.ParentModule)) is { } parent
+                && parent.Ports.FirstOrDefault(p => p.IsEthernet) is { } port)
+            {
+                module.ParentPortId = port.Id;
+            }
+        });
+    }
+
+    public string ParentPortId
+    {
+        get => module.ParentPortId.ToString(CultureInfo.InvariantCulture);
+        set => Edit(() => module.ParentPortId = Int(value, module.ParentPortId));
+    }
+
+    public string IpAddress
+    {
+        get => module.IpAddress;
+        set => Edit(() => module.IpAddress = value?.Trim() ?? string.Empty);
+    }
+
+    public string Format
+    {
+        get => module.Format;
+        set => Edit(() => module.Format = value ?? ModuleFormats.Dint);
+    }
+
+    public IReadOnlyList<string> FormatChoices => ModuleFormats.All;
+
+    public IReadOnlyList<string> ParentChoices => owner.ParentChoices;
+
+    public string InputInstance
+    {
+        get => module.InputInstance.ToString(CultureInfo.InvariantCulture);
+        set => Edit(() => module.InputInstance = Int(value, module.InputInstance));
+    }
+
+    public string InputSize
+    {
+        get => module.InputSize.ToString(CultureInfo.InvariantCulture);
+        set => Edit(() => module.InputSize = Int(value, module.InputSize));
+    }
+
+    public string OutputInstance
+    {
+        get => module.OutputInstance.ToString(CultureInfo.InvariantCulture);
+        set => Edit(() => module.OutputInstance = Int(value, module.OutputInstance));
+    }
+
+    public string OutputSize
+    {
+        get => module.OutputSize.ToString(CultureInfo.InvariantCulture);
+        set => Edit(() => module.OutputSize = Int(value, module.OutputSize));
+    }
+
+    public string ConfigInstance
+    {
+        get => module.ConfigInstance.ToString(CultureInfo.InvariantCulture);
+        set => Edit(() => module.ConfigInstance = Int(value, module.ConfigInstance));
+    }
+
+    public string ConfigSize
+    {
+        get => module.ConfigSize.ToString(CultureInfo.InvariantCulture);
+        set => Edit(() => module.ConfigSize = Int(value, module.ConfigSize));
+    }
+
+    public string RpiMs
+    {
+        get => module.RpiMs.ToString("0.###", CultureInfo.InvariantCulture);
+        set => Edit(() => module.RpiMs = double.TryParse(value, NumberStyles.Float, CultureInfo.InvariantCulture, out double ms) && ms > 0 ? ms : module.RpiMs);
+    }
+
+    public bool Unicast
+    {
+        get => module.Unicast;
+        set => Edit(() => module.Unicast = value);
+    }
+
+    /// <summary>The tags Studio 5000 will create, so the logic that uses them can be written now.</summary>
+    public string TagsNote =>
+        $"Studio 5000 creates {module.Name}:I.Data[0..{Math.Max(0, module.InputSize - 1).ToString(CultureInfo.InvariantCulture)}]"
+        + (module.OutputSize > 0 ? $" and {module.Name}:O.Data[0..{(module.OutputSize - 1).ToString(CultureInfo.InvariantCulture)}]" : string.Empty)
+        + $" as {Element(module.Format)}. Modules go into a project copy (Write into project copy); they are not import files.";
+
+    private static string Element(string format) => format switch
+    {
+        ModuleFormats.Int => "INT",
+        ModuleFormats.Sint => "SINT",
+        ModuleFormats.Real => "REAL",
+        _ => "DINT",
+    };
+
+    private static int Int(string? text, int fallback) =>
+        int.TryParse(text, NumberStyles.Integer, CultureInfo.InvariantCulture, out int n) && n >= 0 ? n : fallback;
+
+    private void Edit(Action apply)
+    {
+        apply();
+        OnPropertyChanged(string.Empty);
+        owner.Changed();
+    }
+}

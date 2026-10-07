@@ -80,6 +80,31 @@ public static class ProjectMerger
                     .Concat(e.Element("LocalTags")?.Elements("LocalTag").Select(p => (string?)p.Attribute("DataType")) ?? []));
         }
 
+        if (set.Modules.Count > 0)
+        {
+            XElement modules = Container(controller, "Modules");
+            foreach (ModuleDraft module in set.Modules)
+            {
+                XElement? existing = Find(modules, "Module", module.Name);
+                if (existing is not null && !string.Equals((string?)existing.Attribute("CatalogNumber"), "ETHERNET-MODULE", StringComparison.OrdinalIgnoreCase))
+                {
+                    throw new InvalidOperationException(
+                        $"Module {module.Name}: the project has a {(string?)existing.Attribute("CatalogNumber")} by that name. "
+                        + "Only Generic Ethernet modules are written; rename the draft.");
+                }
+
+                if (Find(modules, "Module", module.ParentModule) is null)
+                {
+                    throw new InvalidOperationException($"Module {module.Name}: its parent {module.ParentModule} is not in the I/O tree.");
+                }
+
+                // A new module is appended: its parent is already above it, which Studio 5000 needs.
+                Upsert(modules, "Module", module.Name, L5xWriter.Module(module), report, "Module");
+            }
+
+            report.Notes.Add("Generic Ethernet modules: check the comm format and sizes in the module's properties after opening the copy.");
+        }
+
         XElement tags = Container(controller, "Tags");
         XElement programs = Container(controller, "Programs");
 

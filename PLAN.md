@@ -14,12 +14,14 @@ that data, and what looks wrong. Later: write logic back as L5X for import into 
 | Read .ACD directly | No. Proprietary binary. Export to L5X, or automate that with Rockwell's Logix Designer SDK (needs Studio 5000 installed and licensed) |
 | Hardware tree, comms map, cross-reference, findings | Yes - done (first cut) |
 | Draw ladder with rails and branches | Yes - done (LadderParser + LadderLayout + LadderRungView) |
-| Function block / SFC | Readable XML, harder to present; later |
-| Compare live network to the project | Yes - reuse NetControl's EtherNet/IP List Identity scan |
+| Function block / SFC | Not planned for now (not wanted) |
+| Compare live network to the project | Not planned for now (not wanted) |
+| System view: drawn topology, several controllers joined | Yes - done (0.4.0, PlantModel + System tab) |
+| Edit in place with a revision history, diff and revert | Yes - done (0.4.0) |
 | Generate rungs / UDTs / AOIs / programs as L5X for import | Yes - done (Authoring/), Studio 5000 validates on import |
 | Write drafts into a copy of a whole-project L5X | Yes - done (ProjectMerger); open the copy in Studio 5000 |
 | Convert structured text to ladder | Not planned - little ST in use; revisit if that changes |
-| Modules (Generic Ethernet etc.) as L5X | Yes - not yet; needs module-definition templates per catalog number |
+| Modules (Generic Ethernet) as L5X | Done for Generic Ethernet (0.4.0, project copy only); other catalog numbers need module definitions |
 | Download to a controller or online edit | No - out of scope on purpose |
 
 ## Steps
@@ -29,12 +31,18 @@ Done in 0.2.0: step 2's drawing (ladder view, operand click-through), step 6's f
 those: click a finding's location to jump to the rung; module templates; LLM-assisted rung
 drafting.
 
+Done in 0.4.0: finding-to-rung links, step B (edit in place, plus a full revision history with
+diff and revert), step 3 (system view), step 4 (the rules below, plus LC-PLT-001..006 across
+controllers), Generic Ethernet module drafts, TreatWarningsAsErrors. Step 5 (live compare) and
+function block / SFC are dropped for now.
+
 **Next, in order:**
 
 A. **First Windows build and a real import.** Push to GitHub; the `verify` run is the first time
    the WPF project compiles. Then import one file of each kind (data type, AOI, program, routine)
-   into a scratch project in Studio 5000 and open one merged project copy. Every complaint the
-   importer makes is a fixture and a test. Flip TreatWarningsAsErrors on.
+   into a scratch project in Studio 5000 and open one merged project copy - with a Generic
+   Ethernet module in it, to confirm ModuleFormats (CommMethod numbers, sizes in bytes). Every
+   complaint the importer makes is a fixture and a test.
 B. **Editing in place**: change a rung in the open project rather than in a copy routine, with a
    diff of what changed before export.
 C. Steps 3-5 below (system view, more rules, live compare).

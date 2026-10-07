@@ -41,8 +41,12 @@ src/LogicControl.Core/        engine - MUST NOT reference any UI assembly
     Logic/                    rung parsing, operand -> tag names, instruction tables, rung colouring,
                               LadderParser (branch tree) and LadderLayout (geometry for the view)
     Authoring/                drafts, DraftChecker, L5xWriter (import files), ProjectMerger
-                              (write into a whole-project copy), LogicTemplates, DeclarationText
-    Analysis/                 cross-reference, hardware tree, comms map, findings, ProjectAnalysis
+                              (write into a whole-project copy), LogicTemplates, DeclarationText,
+                              DraftsFromProject (project -> drafts, the "before" of a comparison)
+    Authoring/History/        RevisionHistory (snapshots in the .lcdev), SetDiff, LineDiff,
+                              RungComparison
+    Analysis/                 cross-reference, hardware tree, comms map, findings, ProjectAnalysis,
+                              PlantModel + PlantLayout (several projects joined; the System tab)
     Assistant/                LogicTools (the AI's tool table), ClaudeClient (Messages API, SSE),
                               ConversationSession (tool-use loop), AssistantPrompt, McpServer
     Diagnostics/              rolling trace log, ported from NetControl
@@ -52,8 +56,9 @@ src/LogicControl.App/         WPF shell
     Diagnostics/              build info, settings.json, update check/download/apply (from NetControl)
     ViewModels/               WPF-free; everything the window shows. Develop/ is the Develop tab,
                               Assistant/ the Claude panel
-    Views/                    MainWindow, AppearanceWindow, UpdateWindow, LadderRungView
-tests/LogicControl.Tests/     xUnit, net10.0-windows (references the App); Fixtures/Line3.L5X
+    Views/                    MainWindow, AppearanceWindow, UpdateWindow, LadderRungView, TopologyView
+tests/LogicControl.Tests/     xUnit, net10.0-windows (references the App); Fixtures/Line3.L5X and
+                              RobotCell.L5X (the controller Line3 talks to - the plant tests)
 installer/                    Inno Setup script; tools/publish.ps1 builds exe + installer
 .github/workflows/            verify (every push) and release (on a v* tag) - see RELEASING.md
 ```
@@ -79,8 +84,15 @@ installer/                    Inno Setup script; tools/publish.ps1 builds exe + 
 - **The checker warns when it does not know** and errors only on what Studio 5000 would refuse. An
   instruction outside InstructionSignatures is a warning, never an error. `?` for a timer's
   Preset/Accum is what Studio exports and is not flagged.
-- `LadderRungView` draws in OnRender; its colours are dependency properties fed from tokens by the
-  `LadderRung` style. Never look a brush up inside OnRender.
+- `LadderRungView` and `TopologyView` draw in OnRender; their colours are dependency properties fed
+  from tokens by the `LadderRung` and `Topology` styles. Never look a brush up inside OnRender.
+- **Every change to the drafts is a revision.** A structural action (new, delete, template,
+  revert, Claude's tools) calls `CommitPending()` *before* it changes the set and `Commit(label)`
+  after; typing calls `Changed()`, which batches per draft and per minute. Get the order wrong and
+  a revision is labelled with the wrong step. Reverting records a new revision - history is never
+  rewritten. Plant-level findings are LC-PLT-*, planted in RobotCell.L5X and marked PLANT.
+- **Generic Ethernet module L5X is unverified** (ModuleFormats: CommMethod numbers, sizes in
+  bytes). The first real import of a merged project with a module confirms or corrects it.
 - **The assistant can only change drafts.** LogicTools has no tool that touches a controller,
   edits the opened project or writes any file other than the drafts (the --mcp host saves its own
   .lcdev after each change); draft tools write the DevelopmentSet and return the checker's verdict. Keep it that way - new tools that act outside the drafts need a person in the loop.
@@ -92,8 +104,10 @@ installer/                    Inno Setup script; tools/publish.ps1 builds exe + 
 
 ## Status
 
-0.2.0 built and ran on Windows (the user opened projects with it). The engine, view models,
-updater and assistant are tested on Linux (.NET 10.0.112) with an offline xunit stand-in: 178
-tests pass. **The 0.3.0 XAML - the Claude panel and its code-behind - has not been compiled
-yet**; the next `verify` run on GitHub is that compile. Still open: import each kind of export
-file into a scratch Studio 5000 project (PLAN.md step A), then flip TreatWarningsAsErrors on.
+0.4.0. The engine, view models, updater and assistant are tested on Linux (.NET 10.0.112) with an
+offline xunit stand-in: 236 tests pass. The whole app, XAML included, compiles on Linux with 0
+warnings when pointed at the WindowsDesktop assemblies copied from a Windows machine (no NuGet:
+`DisableImplicitFrameworkReferences` plus `<Reference>`s to the NETCore ref pack and the WPF dlls,
+`EnableWindowsTargeting`, `UseAppHost=false`) - bindings and resources are only checked at run
+time on Windows. Still open: import each kind of export file, and a merged copy with a Generic
+Ethernet module, into a scratch Studio 5000 project (PLAN.md step A).

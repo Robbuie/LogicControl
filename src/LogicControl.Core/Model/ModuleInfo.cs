@@ -46,6 +46,9 @@ public sealed record ModuleInfo
 
     public IReadOnlyList<ConnectionInfo> Connections { get; init; } = [];
 
+    /// <summary>The Communications element's CommMethod - which comm format a Generic Ethernet module uses.</summary>
+    public int? CommMethod { get; init; }
+
     /// <summary>Generic Ethernet modules: the configuration assembly instance and size.</summary>
     public int? ConfigInstance { get; init; }
 

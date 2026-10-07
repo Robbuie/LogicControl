@@ -11,8 +11,14 @@ back as L5X for Studio 5000 to import.
 - **Tags** - every tag with read/write counts and a cross-reference to each rung or ST line.
 - **Logic** - ladder drawn with rails, contacts, coils, boxes and branches (or the neutral text,
   Ctrl+L). Click an operand to open its tag.
+- **System** - the controller drawn as a system: bridges, devices and every link, coloured by kind.
+  Add the other controllers' exports and they join into one plant, checked across controllers:
+  consumed tags nobody produces, type and RPI mismatches, messages to tags that are not there, two
+  controllers owning one device.
 - **Findings** - duplicate IPs, inhibited modules, consumed tags from nowhere, messages nothing
-  fires, double coils, unscheduled programs, uncalled routines, undeclared tags and more.
+  fires or checks, double coils, tags written from two tasks, RPIs slower than the task reading
+  them, unscheduled programs, uncalled routines, undeclared tags and more. Click a finding's rung
+  to open it.
 
 **Writing** (the Develop tab)
 
@@ -20,7 +26,13 @@ back as L5X for Studio 5000 to import.
   or paste a member or tag list straight out of Excel.
 - **Generate** from templates: motor starter (as rungs or as an AOI), two-position valve, latched
   alarm, analog input, heartbeat - one UDT, a tag per instance, the rungs for each.
-- **Edit a copy** of any routine or AOI in the open project.
+- **Edit in place** any routine or AOI in the open project: the Logic tab shows your version with
+  every added, changed and removed rung marked, against the project's own.
+- **History**: every step is a revision - yours, Claude's, a template's - with what it changed,
+  rung by rung. Go back to any of them; going back is itself a step, so it can be undone. Compare
+  all the drafts with the open project before exporting.
+- **Generic Ethernet modules**: draft a new one or change one in the project, written into a
+  project copy.
 - Every rung is drawn as it is typed and **checked** against the instruction set, the operand
   counts, and the tags, members and AOIs the project and the drafts declare.
 - **Export import files** - one L5X per item, numbered in import order, with what each needs
