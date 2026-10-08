@@ -195,6 +195,7 @@ public sealed class SystemViewModel : ObservableObject
             }
 
             Add(analysis);
+            _main.Recent.Add(path, RecentKind.Export);
         }
         catch (L5xFormatException ex)
         {

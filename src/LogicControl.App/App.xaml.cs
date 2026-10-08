@@ -80,7 +80,8 @@ public partial class App : Application
                 DataFolder = Path.Combine(AppPaths.Data, "claude"),
                 SelfExecutable = BuildInfo.ExecutablePath,
                 ConfiguredPath = preferences.ClaudeCodePath,
-            });
+            },
+            recent: new RecentFiles(RecentFiles.DefaultPath));
         viewModel.Assistant.ClaudeCodePathChanged += (_, _) =>
         {
             preferences.ClaudeCodePath = viewModel.Assistant.ClaudeCodeConfiguredPath;

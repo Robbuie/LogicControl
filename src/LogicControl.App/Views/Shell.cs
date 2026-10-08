@@ -35,4 +35,25 @@ internal static class Shell
                 MessageBoxImage.Warning);
         }
     }
+
+    /// <summary>
+    /// Opens Explorer on the folder holding <paramref name="path"/> with the file selected. Runs
+    /// Windows' own explorer.exe - never anything named by the file.
+    /// </summary>
+    public static void Reveal(Window owner, string path)
+    {
+        try
+        {
+            string explorer = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.Windows), "explorer.exe");
+            var info = new System.Diagnostics.ProcessStartInfo(explorer) { UseShellExecute = false };
+            info.ArgumentList.Add($"/select,{path}");
+            using System.Diagnostics.Process? started = System.Diagnostics.Process.Start(info);
+        }
+        catch (Exception ex) when (ex is System.ComponentModel.Win32Exception
+            or InvalidOperationException or ObjectDisposedException or FileNotFoundException)
+        {
+            MessageBox.Show(owner, $"Could not show {path} in Explorer: {ex.Message}", "LogicControl",
+                MessageBoxButton.OK, MessageBoxImage.Warning);
+        }
+    }
 }

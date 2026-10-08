@@ -50,6 +50,8 @@ public partial class MainWindow : Window
         }), Key.L, ModifierKeys.Control));
 
         InputBindings.Add(new KeyBinding(new RelayKey(() => OnDevelopSave(this, new RoutedEventArgs())), Key.S, ModifierKeys.Control));
+        InputBindings.Add(new KeyBinding(new RelayKey(() => SaveDevelop(saveAs: true)), Key.S, ModifierKeys.Control | ModifierKeys.Shift));
+        InputBindings.Add(new KeyBinding(new RelayKey(ReopenLastExport), Key.O, ModifierKeys.Control | ModifierKeys.Shift));
 
         InputBindings.Add(new KeyBinding(new RelayKey(() =>
         {
@@ -167,8 +169,204 @@ public partial class MainWindow : Window
     {
         if (FirstDroppedFile(e) is { } path)
         {
-            _ = ViewModel?.OpenAsync(path);
+            // A dropped .lcdev opens on the Develop tab, as it does from Open with.
+            if (path.EndsWith(DevelopmentSet.FileExtension, StringComparison.OrdinalIgnoreCase))
+            {
+                OpenDevelopmentSet(path);
+            }
+            else
+            {
+                _ = ViewModel?.OpenAsync(path);
+            }
         }
+    }
+
+    // ------------------------------------------------------------------ recent files
+
+    /// <summary>
+    /// Fills one of File's recent submenus as it opens, so it is never stale: Tag "open" lists
+    /// exports and development sets, "compare" and "add" list exports only.
+    /// </summary>
+    private void OnRecentSubmenuOpened(object sender, RoutedEventArgs e)
+    {
+        // SubmenuOpened bubbles; only the menu that opened rebuilds.
+        if (sender is not MenuItem menu || !ReferenceEquals(e.OriginalSource, menu) || ViewModel is not { } vm)
+        {
+            return;
+        }
+
+        string action = menu.Tag as string ?? "open";
+        RecentFiles recent = vm.Recent;
+        menu.Items.Clear();
+
+        IEnumerable<RecentFile> exports = recent.Exports;
+        if (action != "open" && vm.FilePath is { } current)
+        {
+            // Comparing or adding the file that is already open means nothing.
+            exports = exports.Where(f => !string.Equals(f.Path, Path.GetFullPath(current), StringComparison.OrdinalIgnoreCase));
+        }
+
+        int number = 0;
+        foreach (RecentFile file in exports)
+        {
+            menu.Items.Add(RecentItem(file, ++number, action));
+        }
+
+        if (action == "open" && recent.DevelopmentSets.Count > 0)
+        {
+            if (number > 0)
+            {
+                menu.Items.Add(new Separator());
+            }
+
+            menu.Items.Add(new MenuItem { Header = "Development sets", IsEnabled = false });
+            foreach (RecentFile file in recent.DevelopmentSets)
+            {
+                menu.Items.Add(RecentItem(file, ++number, action));
+            }
+        }
+
+        if (menu.Items.Count == 0)
+        {
+            menu.Items.Add(new MenuItem { Header = "(nothing yet)", IsEnabled = false });
+            return;
+        }
+
+        if (action == "open")
+        {
+            menu.Items.Add(new Separator());
+            var removeMissing = new MenuItem { Header = "_Remove missing files", IsEnabled = recent.HasMissing };
+            removeMissing.Click += (_, _) => recent.RemoveMissing();
+            menu.Items.Add(removeMissing);
+
+            var clear = new MenuItem { Header = "C_lear the list" };
+            clear.Click += (_, _) => recent.Clear();
+            menu.Items.Add(clear);
+        }
+    }
+
+    /// <summary>One recent file: "_1  Line3.L5X" with its folder on the right and the full path as a tip.</summary>
+    private MenuItem RecentItem(RecentFile file, int number, string action)
+    {
+        bool there = ViewModel?.Recent.Exists(file) ?? true;
+
+        // An underscore in a file name is an access key to WPF unless it is doubled.
+        string name = file.Name.Replace("_", "__", StringComparison.Ordinal);
+        string prefix = number <= 9 ? $"_{number}  " : "    ";
+
+        var item = new MenuItem
+        {
+            Header = prefix + name + (there ? string.Empty : "  (missing)"),
+            InputGestureText = Shorten(file.Folder, 48),
+            ToolTip = there ? file.Path : $"{file.Path}\n\nNot there now - a removed drive or an offline share?",
+            Opacity = there ? 1.0 : 0.6,
+        };
+
+        item.Click += (_, _) => OpenRecent(file, action);
+        return item;
+    }
+
+    private void OpenRecent(RecentFile file, string action)
+    {
+        if (ViewModel is not { } vm)
+        {
+            return;
+        }
+
+        if (!vm.Recent.Exists(file))
+        {
+            MessageBoxResult remove = MessageBox.Show(
+                this,
+                $"{file.Path}\n\nis not there now. Take it off the recent list?",
+                "LogicControl",
+                MessageBoxButton.YesNo,
+                MessageBoxImage.Question);
+            if (remove == MessageBoxResult.Yes)
+            {
+                vm.Recent.Remove(file.Path);
+            }
+
+            return;
+        }
+
+        switch (action)
+        {
+            case "compare":
+                vm.SelectedTab = MainViewModel.CompareTab;
+                _ = vm.Compare.OpenAsync(file.Path);
+                break;
+
+            case "add":
+                vm.SelectedTab = MainViewModel.SystemTab;
+                _ = vm.SystemView.AddAsync(file.Path);
+                break;
+
+            default:
+                if (file.Kind == RecentKind.DevelopmentSet)
+                {
+                    OpenDevelopmentSet(file.Path);
+                }
+                else
+                {
+                    _ = vm.OpenAsync(file.Path);
+                }
+
+                break;
+        }
+    }
+
+    /// <summary>Ctrl+Shift+O: the newest export on the list that is not the one open now.</summary>
+    private void ReopenLastExport()
+    {
+        if (ViewModel is not { } vm)
+        {
+            return;
+        }
+
+        string? current = vm.FilePath is { } open ? Path.GetFullPath(open) : null;
+        RecentFile? last = vm.Recent.Exports.FirstOrDefault(
+            f => !string.Equals(f.Path, current, StringComparison.OrdinalIgnoreCase) && vm.Recent.Exists(f));
+        if (last is not null)
+        {
+            _ = vm.OpenAsync(last.Path);
+        }
+    }
+
+    private void OnRevealExport(object sender, RoutedEventArgs e)
+    {
+        if (ViewModel?.FilePath is { } path)
+        {
+            Shell.Reveal(this, path);
+        }
+    }
+
+    private void OnCopyExportPath(object sender, RoutedEventArgs e)
+    {
+        if (ViewModel?.FilePath is { } path)
+        {
+            try
+            {
+                Clipboard.SetText(path);
+            }
+            catch (System.Runtime.InteropServices.COMException)
+            {
+                // Another program has the clipboard open; pressing again works.
+            }
+        }
+    }
+
+    /// <summary>"C:\Users\me\...\Line 3\Exports" - the start and the end, which are the parts that say which.</summary>
+    private static string Shorten(string folder, int max)
+    {
+        if (folder.Length <= max)
+        {
+            return folder;
+        }
+
+        string root = Path.GetPathRoot(folder) ?? string.Empty;
+        string tail = folder[^(max - root.Length - 4)..];
+        int cut = tail.IndexOf(Path.DirectorySeparatorChar, StringComparison.Ordinal);
+        return root + "..." + (cut >= 0 ? tail[cut..] : Path.DirectorySeparatorChar + tail);
     }
 
     /// <summary>The first dropped file that exists. Any extension: the reader says plainly if it is not L5X.</summary>
@@ -462,14 +660,23 @@ public partial class MainWindow : Window
         }
 
         var dialog = new OpenFileDialog { Title = "Open a development set", Filter = SetFilter, CheckFileExists = true };
-        if (dialog.ShowDialog(this) != true)
+        if (dialog.ShowDialog(this) == true)
+        {
+            OpenDevelopmentSet(dialog.FileName, confirmed: true);
+        }
+    }
+
+    /// <summary>Opens a .lcdev on the Develop tab - from the dialog, the recent list or a drop.</summary>
+    private void OpenDevelopmentSet(string path, bool confirmed = false)
+    {
+        if (Develop is not { } d || (!confirmed && !ConfirmDiscard(d)))
         {
             return;
         }
 
         try
         {
-            d.Open(dialog.FileName);
+            d.Open(path);
             ViewModel?.StartDeveloping();
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidDataException)
@@ -477,6 +684,8 @@ public partial class MainWindow : Window
             Fail("Could not open the development set", ex);
         }
     }
+
+    private void OnDevelopSaveAs(object sender, RoutedEventArgs e) => SaveDevelop(saveAs: true);
 
     private void OnDevelopSave(object sender, RoutedEventArgs e) => SaveDevelop(saveAs: false);
 

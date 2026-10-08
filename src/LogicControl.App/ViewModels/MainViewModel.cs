@@ -58,10 +58,12 @@ public sealed class MainViewModel : ObservableObject
     /// <param name="model">The assistant's model, as last chosen.</param>
     /// <param name="backend">The assistant's back end as last chosen; null picks one (see AssistantViewModel).</param>
     /// <param name="claudeCode">Where and how to run Claude Code - the app's real one, or a test's.</param>
+    /// <param name="recent">The recent-files list: recent.json in the app, memory by default.</param>
     public MainViewModel(
         IApiKeyStore? keys = null, Func<HttpMessageHandler?>? handler = null, string? model = null,
-        AssistantBackend? backend = null, ClaudeCodeEnvironment? claudeCode = null)
+        AssistantBackend? backend = null, ClaudeCodeEnvironment? claudeCode = null, RecentFiles? recent = null)
     {
+        Recent = recent ?? new RecentFiles();
         SystemView = new SystemViewModel(this);
         Compare = new CompareViewModel(this);
         Assistant = new AssistantViewModel(this, keys ?? new MemoryKeyStore(), handler, model, backend, claudeCode);
@@ -108,6 +110,15 @@ public sealed class MainViewModel : ObservableObject
             }
         };
 
+        // A development set goes on the recent list when it is opened or saved under a name.
+        Develop.PropertyChanged += (_, e) =>
+        {
+            if (e.PropertyName is nameof(DevelopViewModel.FilePath) && Develop.FilePath is { } set)
+            {
+                Recent.Add(set, RecentKind.DevelopmentSet);
+            }
+        };
+
         // The Logic tab shows an edited routine as the draft has it, so it follows every change.
         Develop.Edited += (_, _) => RefreshRoutine();
         Develop.Revised += (_, _) => RefreshRoutine();
@@ -135,6 +146,12 @@ public sealed class MainViewModel : ObservableObject
 
     /// <summary>The Develop tab: drafts, their editors, checks and exports.</summary>
     public DevelopViewModel Develop { get; } = new();
+
+    /// <summary>
+    /// Files opened lately - File &gt; Open recent. Every export read successfully (opened, compared
+    /// with, or added to the system view) and every development set opened or saved goes on it.
+    /// </summary>
+    public RecentFiles Recent { get; }
 
     /// <summary>The status bar's update line - only set when a newer build is published. Click it to update.</summary>
     public string? UpdateStatus
@@ -442,6 +459,7 @@ public sealed class MainViewModel : ObservableObject
             ProjectAnalysis analysis = await Task.Run(() => ProjectAnalysis.Open(path)).ConfigureAwait(true);
             _filePath = path;
             Load(analysis);
+            Recent.Add(path, RecentKind.Export);
         }
         catch (L5xFormatException ex)
         {

@@ -254,6 +254,7 @@ public sealed class CompareViewModel : ObservableObject
         {
             ProjectAnalysis other = await Task.Run(() => ProjectAnalysis.Open(path)).ConfigureAwait(true);
             Load(other);
+            _main.Recent.Add(path, RecentKind.Export);
         }
         catch (L5xFormatException ex)
         {

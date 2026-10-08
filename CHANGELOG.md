@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.5.1 - recent files
+
+- **File > Open recent**: the last ten exports and ten development sets, newest first, numbered
+  for the keyboard, with the folder beside each name and the full path as a tip. A file that is
+  not there now (a pulled USB stick, an offline share) is dimmed and offers to come off the list;
+  Remove missing files and Clear the list tidy it. Kept in %LOCALAPPDATA%\LogicControl\recent.json.
+- **Compare with a recent export** and **Add a recent controller to the system view** - the same
+  list, one click instead of a file dialog.
+- **Ctrl+Shift+O** reopens the last export; **Save development set as** (Ctrl+Shift+S);
+  **Show in Explorer** and **Copy path** for the open export.
+- A dropped .lcdev opens on the Develop tab, as it does from Open with.
+
 ## 0.5.0 - compare exports, with Claude
 
 - **Compare tab** (File > Compare with another export, Ctrl+9): the open project against another

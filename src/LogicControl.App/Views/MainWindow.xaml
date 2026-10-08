@@ -70,17 +70,37 @@
     <Menu x:Key="TitleMenu" Background="Transparent" BorderThickness="0" Padding="0" VerticalAlignment="Center">
       <MenuItem Header="_File">
         <MenuItem Header="_Open L5X export..." Click="OnOpen" InputGestureText="Ctrl+O" />
+        <!-- The three recent submenus are filled each time they open (OnRecentSubmenuOpened); the
+             placeholder child is what gives an empty one its arrow. Tag says what a click does. -->
+        <MenuItem Header="Open _recent" Tag="open" SubmenuOpened="OnRecentSubmenuOpened"
+                  ToolTip="Exports and development sets opened lately. Ctrl+Shift+O reopens the last export.">
+          <MenuItem Header="(nothing yet)" IsEnabled="False" />
+        </MenuItem>
+        <Separator />
         <MenuItem Header="Co_mpare with another export..." Click="OnCompareWith"
                   ToolTip="Compare the open project with another L5X export - a backup, another line, a contractor's version" />
+        <MenuItem Header="Compare with a recent e_xport" Tag="compare" SubmenuOpened="OnRecentSubmenuOpened"
+                  IsEnabled="{Binding HasProject}">
+          <MenuItem Header="(nothing yet)" IsEnabled="False" />
+        </MenuItem>
         <MenuItem Header="Add a _controller to the system view..." Click="OnAddController"
                   ToolTip="Open another controller's export beside this one, to see and check how they talk to each other" />
+        <MenuItem Header="Add a recent controller to the system _view" Tag="add" SubmenuOpened="OnRecentSubmenuOpened"
+                  IsEnabled="{Binding HasProject}">
+          <MenuItem Header="(nothing yet)" IsEnabled="False" />
+        </MenuItem>
+        <Separator />
         <MenuItem Header="_Reload" Command="{Binding ReloadCommand}" InputGestureText="F5"
                   ToolTip="Read the same file again - after a fresh export from Studio 5000." />
+        <MenuItem Header="Show in _Explorer" Click="OnRevealExport" IsEnabled="{Binding HasProject}"
+                  ToolTip="Open the folder the export is in, with the file selected." />
+        <MenuItem Header="Copy _path" Click="OnCopyExportPath" IsEnabled="{Binding HasProject}" />
         <MenuItem Header="_Close" Command="{Binding CloseCommand}" />
         <Separator />
         <MenuItem Header="_New development set" Click="OnDevelopNew" />
         <MenuItem Header="Open _development set..." Click="OnDevelopOpen" />
         <MenuItem Header="_Save development set" Click="OnDevelopSave" InputGestureText="Ctrl+S" />
+        <MenuItem Header="Save development set _as..." Click="OnDevelopSaveAs" InputGestureText="Ctrl+Shift+S" />
         <Separator />
         <MenuItem Header="E_xit" Click="OnExit" />
       </MenuItem>
