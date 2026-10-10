@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.5.2 - a full menu
+
+- **Every action is on the menu bar**, not just on a tab's toolbar or a key. New menus: **Logic**
+  (edit this routine, discard edits, show original, ladder or text, ask Claude to explain),
+  **Develop** (each New..., From template, delete, clear all drafts, History, Changes vs project,
+  export, write into a project copy), **Compare** (moved from File, plus swap, show all, use the
+  other version, ask Claude) and **Claude** (panel, new chat, stop, Claude's drafts, Claude Code
+  sign-in and locate, API key). An item that acts on a tab brings that tab forward.
+- **View** gains Filter (Ctrl+F), Clear filter (Esc) and the system view's zoom; **File** gains
+  Reopen last export (Ctrl+Shift+O); **Help** gains Keyboard shortcuts.
+
 ## 0.5.1 - recent files
 
 - **File > Open recent**: the last ten exports and ten development sets, newest first, numbered

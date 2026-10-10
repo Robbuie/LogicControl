@@ -316,6 +316,8 @@ public partial class MainWindow : Window
     }
 
     /// <summary>Ctrl+Shift+O: the newest export on the list that is not the one open now.</summary>
+    private void OnReopenLastExport(object sender, RoutedEventArgs e) => ReopenLastExport();
+
     private void ReopenLastExport()
     {
         if (ViewModel is not { } vm)
@@ -411,6 +413,10 @@ public partial class MainWindow : Window
     }
 
     private void OnShowDevelop(object sender, RoutedEventArgs e) => ViewModel?.StartDeveloping();
+
+    // A menu hands focus back to where it was when it closes, so the filter takes it after that.
+    private void OnFocusFilter(object sender, RoutedEventArgs e) =>
+        Dispatcher.BeginInvoke(FocusSearch, System.Windows.Threading.DispatcherPriority.Input);
 
     private void FocusSearch()
     {
@@ -605,6 +611,12 @@ public partial class MainWindow : Window
     {
         if (ViewModel?.Assistant is not { ClaudeCodeExecutable: { } exe })
         {
+            // Not found: the panel says so and offers the install guide and Locate.
+            if (ViewModel is { } vm)
+            {
+                vm.Assistant.IsOpen = true;
+            }
+
             return;
         }
 
@@ -922,6 +934,29 @@ public partial class MainWindow : Window
             + "A whole-controller export gives the full picture. A routine, program or AOI exported "
             + "on its own also opens, but checks that need the whole controller are skipped.",
             "How to export an L5X",
+            MessageBoxButton.OK,
+            MessageBoxImage.Information);
+
+    private void OnShortcuts(object sender, RoutedEventArgs e) =>
+        MessageBox.Show(
+            this,
+            "Files\n"
+            + "  Ctrl+O\tOpen an L5X export\n"
+            + "  Ctrl+Shift+O\tReopen the last export\n"
+            + "  F5\tReload the export\n"
+            + "  Ctrl+S\tSave the development set\n"
+            + "  Ctrl+Shift+S\tSave the development set as...\n\n"
+            + "Tabs\n"
+            + "  Ctrl+1 ... Ctrl+9\tOverview, Hardware, Communications, System, Tags, Logic, Findings, Develop, Compare\n\n"
+            + "Looking\n"
+            + "  Ctrl+F\tFilter every grid\n"
+            + "  Esc\tClear the filter\n"
+            + "  Ctrl+L\tLadder or neutral text\n"
+            + "  Double-click\tA rung to edit it, a finding or a tag use to go to it\n\n"
+            + "Claude\n"
+            + "  Ctrl+Shift+A\tShow or hide the panel\n"
+            + "  Enter\tSend (Shift+Enter for a new line)",
+            "Keyboard shortcuts",
             MessageBoxButton.OK,
             MessageBoxImage.Information);
 

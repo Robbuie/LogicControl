@@ -348,6 +348,7 @@ public sealed class MainViewModel : ObservableObject
         {
             if (SetProperty(ref _routine, value))
             {
+                OnPropertyChanged(nameof(HasRoutine));
                 OnPropertyChanged(nameof(LadderVisible));
                 OnPropertyChanged(nameof(TextVisible));
                 OnPropertyChanged(nameof(RoutineHasEdits));
@@ -357,6 +358,9 @@ public sealed class MainViewModel : ObservableObject
             }
         }
     }
+
+    /// <summary>A routine is on the Logic tab - what the Logic menu's Ask Claude needs.</summary>
+    public bool HasRoutine => _routine is not null;
 
     public TagRowViewModel? SelectedTag
     {
