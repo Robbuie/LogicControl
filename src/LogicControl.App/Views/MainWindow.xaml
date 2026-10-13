@@ -65,12 +65,28 @@
       <EventSetter Event="PreviewMouseWheel" Handler="OnChatSideScrollWheel" />
     </Style>
 
-    <!-- Handed to the shared title bar by the constructor through Chrome.TitleContent - see the
-         note in NetControl's MainWindow on why this is not attribute syntax (MC3089). -->
-    <!-- Every action in the window is on this menu, whether or not it also has a button or a key:
+    <!-- Navigator rows: icon, name, a muted badge, and a status dot when something is wrong. -->
+    <HierarchicalDataTemplate DataType="{x:Type vm:NavNodeViewModel}" ItemsSource="{Binding Children}">
+      <Grid>
+        <Grid.ColumnDefinitions>
+          <ColumnDefinition Width="22" />
+          <ColumnDefinition Width="*" />
+          <ColumnDefinition Width="Auto" />
+          <ColumnDefinition Width="14" />
+        </Grid.ColumnDefinitions>
+        <TextBlock Grid.Column="0" Style="{StaticResource Glyph}" FontSize="13" Text="{Binding Glyph}" />
+        <TextBlock Grid.Column="1" Text="{Binding Title}" TextTrimming="CharacterEllipsis" VerticalAlignment="Center" />
+        <TextBlock Grid.Column="2" Style="{StaticResource Muted}" Text="{Binding Badge}" Margin="8,0,0,0" VerticalAlignment="Center" />
+        <Ellipse Grid.Column="3" Style="{StaticResource LevelDot}" HorizontalAlignment="Right" />
+      </Grid>
+    </HierarchicalDataTemplate>
+  </Window.Resources>
+
+  <DockPanel>
+    <!-- The menu bar, its own row under the title bar. Every action in the window is on it, whether or not it also has a button or a key:
          the tabs' toolbars are shortcuts to it. An item that acts on one tab also brings that tab
          forward (Click="OnShowTab"/"OnShowDevelop" beside the Command), so the result is in view. -->
-    <Menu x:Key="TitleMenu" Background="Transparent" BorderThickness="0" Padding="0" VerticalAlignment="Center">
+    <Menu DockPanel.Dock="Top" Margin="0,0,0,6">
       <MenuItem Header="_File">
         <MenuItem Header="_Open L5X export..." Click="OnOpen" InputGestureText="Ctrl+O" />
         <!-- The three recent submenus are filled each time they open (OnRecentSubmenuOpened); the
@@ -223,23 +239,6 @@
         <MenuItem Header="_About LogicControl" Click="OnAbout" />
       </MenuItem>
     </Menu>
-
-    <!-- Navigator rows: icon, name, a muted badge, and a status dot when something is wrong. -->
-    <HierarchicalDataTemplate DataType="{x:Type vm:NavNodeViewModel}" ItemsSource="{Binding Children}">
-      <Grid>
-        <Grid.ColumnDefinitions>
-          <ColumnDefinition Width="22" />
-          <ColumnDefinition Width="*" />
-          <ColumnDefinition Width="Auto" />
-          <ColumnDefinition Width="14" />
-        </Grid.ColumnDefinitions>
-        <TextBlock Grid.Column="0" Style="{StaticResource Glyph}" FontSize="13" Text="{Binding Glyph}" />
-        <TextBlock Grid.Column="1" Text="{Binding Title}" TextTrimming="CharacterEllipsis" VerticalAlignment="Center" />
-        <TextBlock Grid.Column="2" Style="{StaticResource Muted}" Text="{Binding Badge}" Margin="8,0,0,0" VerticalAlignment="Center" />
-        <Ellipse Grid.Column="3" Style="{StaticResource LevelDot}" HorizontalAlignment="Right" />
-      </Grid>
-    </HierarchicalDataTemplate>
-  </Window.Resources>
 
   <Grid Margin="8,0,8,0">
     <Grid.RowDefinitions>
@@ -2064,4 +2063,5 @@
       <TextBlock Style="{StaticResource Muted}" Text="{Binding StatusText}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
     </DockPanel>
   </Grid>
+  </DockPanel>
 </Window>

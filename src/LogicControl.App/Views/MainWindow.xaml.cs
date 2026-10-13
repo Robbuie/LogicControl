@@ -6,7 +6,6 @@ using System.Windows.Controls;
 using System.Windows.Data;
 using System.Windows.Input;
 using Microsoft.Win32;
-using LogicControl.App.Appearance;
 using LogicControl.App.Composition;
 using LogicControl.App.Diagnostics;
 using LogicControl.App.ViewModels;
@@ -31,8 +30,6 @@ public partial class MainWindow : Window
     public MainWindow()
     {
         InitializeComponent();
-
-        Chrome.SetTitleContent(this, Resources["TitleMenu"]);
 
         Drop += OnDrop;
         DragOver += OnDragOver;

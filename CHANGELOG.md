@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.5.3 - the menu bar shows
+
+- **The menus are visible.** They were handed to the custom title bar, which never drew them, so
+  File, View, Logic, Develop, Compare, Claude and Help were missing in every build since 0.2.0.
+  They are now an ordinary menu bar across the top of the window, under the title.
+
 ## 0.5.2 - a full menu
 
 - **Every action is on the menu bar**, not just on a tab's toolbar or a key. New menus: **Logic**
