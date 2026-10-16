@@ -937,17 +937,18 @@
               </Border>
 
               <Grid>
-                <!-- Ladder: one drawn rung per row, comment above it, number in the gutter. Scrolls
-                     sideways for a rung wider than the window; the rung's own width tracks the
-                     visible width so outputs still sit against the right rail. Click an operand
-                     to open its tag. -->
+                <!-- Ladder: one drawn rung per row, comment above it, number in the gutter. The list
+                     only scrolls down. A rung wider than the window scrolls sideways on its own
+                     (Shift+wheel or its scrollbar), so no rung is ever widened or shifted by another
+                     one: every rung that fits has its outputs against the same right rail, the
+                     visible edge. Click an operand to open its tag. -->
                 <ItemsControl x:Name="LadderList" ItemsSource="{Binding Routine.Lines}"
                               Visibility="{Binding LadderVisible, Converter={StaticResource BoolToVisible}}"
                               VirtualizingPanel.IsVirtualizing="True" VirtualizingPanel.VirtualizationMode="Recycling"
                               VirtualizingPanel.ScrollUnit="Pixel" ScrollViewer.CanContentScroll="True">
                   <ItemsControl.Template>
                     <ControlTemplate TargetType="ItemsControl">
-                      <ScrollViewer x:Name="LadderScroll" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Auto">
+                      <ScrollViewer x:Name="LadderScroll" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
                         <ItemsPresenter />
                       </ScrollViewer>
                     </ControlTemplate>
@@ -973,12 +974,12 @@
                             <TextBlock Text="{Binding Comment}" FontStyle="Italic" Foreground="{DynamicResource good}" TextWrapping="Wrap"
                                        Margin="4,0,12,4" MaxWidth="900" HorizontalAlignment="Left"
                                        Visibility="{Binding HasComment, Converter={StaticResource BoolToVisible}}" />
-                            <views:LadderRungView Style="{StaticResource LadderRung}"
-                                                  Text="{Binding RungText}"
-                                                  Shapes="{Binding DataContext.Routine.Shapes, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
-                                                  OperandCommand="{Binding DataContext.ShowOperandCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
-                                                  ViewportWidth="{Binding ViewportWidth, RelativeSource={RelativeSource AncestorType=ScrollViewer}}"
-                                                  ViewportInset="64" Margin="0,0,8,0" />
+                            <ScrollViewer Style="{StaticResource SideScroll}" Margin="0,0,8,0">
+                              <views:LadderRungView Style="{StaticResource LadderRung}"
+                                                    Text="{Binding RungText}"
+                                                    Shapes="{Binding DataContext.Routine.Shapes, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                                    OperandCommand="{Binding DataContext.ShowOperandCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}" />
+                            </ScrollViewer>
                           </StackPanel>
                         </Grid>
                       </Border>

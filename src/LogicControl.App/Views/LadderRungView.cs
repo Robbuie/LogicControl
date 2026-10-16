@@ -25,15 +25,6 @@ public sealed class LadderRungView : FrameworkElement
 
     public static readonly DependencyProperty ShapesProperty = Register(nameof(Shapes), typeof(Func<string, InstructionShape?>), null, measure: true);
 
-    /// <summary>
-    /// The width of the scrolling list the rung sits in. Inside a horizontally scrolling list the
-    /// rung is measured with infinite width, which would leave nothing to push the outputs against;
-    /// this gives it the visible width instead, less <see cref="ViewportInset"/> for the gutter.
-    /// </summary>
-    public static readonly DependencyProperty ViewportWidthProperty = Register(nameof(ViewportWidth), typeof(double), 0.0, measure: true);
-
-    public static readonly DependencyProperty ViewportInsetProperty = Register(nameof(ViewportInset), typeof(double), 0.0, measure: true);
-
     public static readonly DependencyProperty OperandCommandProperty = DependencyProperty.Register(
         nameof(OperandCommand), typeof(ICommand), typeof(LadderRungView));
 
@@ -84,18 +75,6 @@ public sealed class LadderRungView : FrameworkElement
         set => SetValue(ShapesProperty, value);
     }
 
-    public double ViewportWidth
-    {
-        get => (double)GetValue(ViewportWidthProperty);
-        set => SetValue(ViewportWidthProperty, value);
-    }
-
-    public double ViewportInset
-    {
-        get => (double)GetValue(ViewportInsetProperty);
-        set => SetValue(ViewportInsetProperty, value);
-    }
-
     public ICommand? OperandCommand
     {
         get => (ICommand?)GetValue(OperandCommandProperty);
@@ -124,23 +103,20 @@ public sealed class LadderRungView : FrameworkElement
 
     // ------------------------------------------------------------------ layout
 
+    /// <summary>
+    /// With a finite width the rung fills it. With an infinite one - the rung is a sideways
+    /// ScrollViewer's content, as it is in the Logic tab, the chat and the comparison panes - it asks
+    /// only for its natural width: the ScrollViewer arranges it at least as wide as what is on
+    /// screen, and the arrange pushes the outputs to the right rail. The width that decides where
+    /// the outputs go is always this rung's own visible width, never a neighbour's or a remembered
+    /// one, so scrolling a list can never move them.
+    /// </summary>
     protected override Size MeasureOverride(Size availableSize)
     {
-        double width = !double.IsInfinity(availableSize.Width) ? availableSize.Width
-            : DirectlyScrolled ? 0
-            : Math.Max(0, ViewportWidth - ViewportInset);
+        double width = double.IsInfinity(availableSize.Width) ? 0 : availableSize.Width;
         LadderDiagram diagram = Layout(width);
         return new Size(Math.Max(diagram.Width, width), diagram.Height + ProblemHeight());
     }
-
-    /// <summary>
-    /// The rung is a ScrollViewer's own content (a rung in the chat or in a comparison pane). Then
-    /// it asks only for its natural width: the ScrollViewer arranges it at least as wide as what is
-    /// on screen, and the arrange pushes the outputs to the right rail. Measuring against a
-    /// <see cref="ViewportWidth"/> instead could use a width from before a resize, laying the rung
-    /// out wider than the panel, with the outputs off its right edge.
-    /// </summary>
-    private bool DirectlyScrolled => VisualTreeHelper.GetParent(this) is ScrollContentPresenter;
 
     protected override Size ArrangeOverride(Size finalSize)
     {
@@ -412,10 +388,17 @@ public sealed class LadderRungView : FrameworkElement
         if (e.Property == TextProperty)
         {
             view._rung = null;
+
+            // A virtualised list recycles a row for another rung; that rung starts at its left
+            // rail, not wherever the last one was scrolled sideways to.
+            if (VisualTreeHelper.GetParent(view) is FrameworkElement { TemplatedParent: ScrollViewer scroller })
+            {
+                scroller.ScrollToHorizontalOffset(0);
+            }
         }
 
         if (e.Property == TextProperty || e.Property == ShapesProperty || e.Property == FontFamilyProperty
-            || e.Property == FontSizeProperty || e.Property == ViewportWidthProperty || e.Property == ViewportInsetProperty)
+            || e.Property == FontSizeProperty)
         {
             view._diagram = null;
             view._hover = null;

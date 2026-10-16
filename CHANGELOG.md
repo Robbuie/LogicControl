@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.5.5 - rungs hold the right rail
+
+- **Outputs stay in view while you scroll a routine.** The Logic tab's ladder scrolled sideways as
+  one list, as wide as the widest rung on screen, and a short rung could be laid out at that width,
+  pushing its OTE off the right edge with nothing to its left. The list now only scrolls down; a
+  rung wider than the window scrolls sideways on its own (its scrollbar, or Shift+wheel). Every
+  rung that fits has its outputs against the same right rail, the visible edge, and scrolling
+  sideways on one rung no longer slides the others.
+
 ## 0.5.4 - compares side by side
 
 - **Compare and History show two panes**: the older version on the left, the newer on the right,
