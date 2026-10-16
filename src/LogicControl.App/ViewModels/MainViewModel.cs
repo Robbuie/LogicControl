@@ -44,6 +44,7 @@ public sealed class MainViewModel : ObservableObject
     private HardwareRowViewModel? _selectedModule;
     private NavNodeViewModel? _selectedNode;
     private bool _showLadder = true;
+    private bool _showNavigator = true;
     private bool _developing;
     private bool _showOriginal;
     private string? _updateStatus;
@@ -409,6 +410,16 @@ public sealed class MainViewModel : ObservableObject
                 OnPropertyChanged(nameof(TextVisible));
             }
         }
+    }
+
+    /// <summary>
+    /// The Controller Organizer on the left. Hide it to give the tabs - a comparison's two panes
+    /// above all - the whole width; the window keeps the width it had for when it comes back.
+    /// </summary>
+    public bool ShowNavigator
+    {
+        get => _showNavigator;
+        set => SetProperty(ref _showNavigator, value);
     }
 
     /// <summary>The drawn view is on screen: ladder chosen and the open routine is ladder.</summary>

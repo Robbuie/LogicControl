@@ -33,6 +33,8 @@ public sealed class HistoryViewModel : ObservableObject
     private IReadOnlyList<ItemChangeViewModel> _changes = [];
     private string _caption = string.Empty;
     private bool _showLadder = true;
+    private bool _sideBySide = true;
+    private DiffSides _sides = DiffSides.Default;
 
     public HistoryViewModel(DevelopViewModel owner, HistoryMode mode)
     {
@@ -146,6 +148,33 @@ public sealed class HistoryViewModel : ObservableObject
         set => ShowLadder = !value;
     }
 
+    /// <summary>The older version in a left pane and the newer in a right one (the default), or one list.</summary>
+    public bool SideBySide
+    {
+        get => _sideBySide;
+        set
+        {
+            if (SetProperty(ref _sideBySide, value))
+            {
+                OnPropertyChanged(nameof(Stacked));
+                Compare();
+            }
+        }
+    }
+
+    public bool Stacked
+    {
+        get => !_sideBySide;
+        set => SideBySide = !value;
+    }
+
+    /// <summary>What the left and right panes are: the older version and the newer.</summary>
+    public DiffSides Sides
+    {
+        get => _sides;
+        private set => SetProperty(ref _sides, value);
+    }
+
     /// <summary>What the right-hand side is showing, in words.</summary>
     public string Caption
     {
@@ -212,6 +241,8 @@ public sealed class HistoryViewModel : ObservableObject
         if (_mode == HistoryMode.Project)
         {
             changes = _owner.ProjectChanges();
+            string file = _owner.Project is null ? "the project" : Path.GetFileName(_owner.Project.SourcePath);
+            Sides = new DiffSides($"Project - {file}", "Drafts", "project", "drafts");
             Caption = _owner.Project is null
                 ? "Open a project to compare the drafts with it."
                 : changes.IsEmpty
@@ -221,11 +252,14 @@ public sealed class HistoryViewModel : ObservableObject
         else if (_selected is null)
         {
             changes = ChangeSet.None;
+            Sides = DiffSides.Default;
             Caption = "No revisions yet.";
         }
         else if (_mode == HistoryMode.SinceThen)
         {
             changes = RevisionHistory.Since(_selected.Record, _owner.Set);
+            string at = Number(_selected.Number);
+            Sides = new DiffSides($"Revision {at}", "Now", at, "now");
             Caption = changes.IsEmpty
                 ? $"Nothing has changed since revision {_selected.Number.ToString(CultureInfo.InvariantCulture)}."
                 : $"Everything since revision {_selected.Number.ToString(CultureInfo.InvariantCulture)} - what going back to it would undo.";
@@ -233,12 +267,33 @@ public sealed class HistoryViewModel : ObservableObject
         else
         {
             changes = _owner.History.ChangesIn(_selected.Record);
+            string at = Number(_selected.Number);
+            int index = IndexOf(_owner.History.Revisions, _selected.Record);
+            string before = index > 0 ? Number(_owner.History.Revisions[index - 1].Number) : string.Empty;
+            Sides = before.Length > 0
+                ? new DiffSides($"Revision {before}", $"Revision {at}", before, at)
+                : new DiffSides("Before the first revision", $"Revision {at}", "before", at);
             Caption = changes.IsEmpty
                 ? $"Revision {_selected.Number.ToString(CultureInfo.InvariantCulture)} changed nothing in the drafts."
                 : $"What revision {_selected.Number.ToString(CultureInfo.InvariantCulture)} changed: {_selected.Label}.";
         }
 
-        Changes = changes.Items.Select(i => new ItemChangeViewModel(i, Exists(i), _showLadder, _owner.Shapes)).ToList();
+        Changes = changes.Items.Select(i => new ItemChangeViewModel(i, Exists(i), _showLadder, _owner.Shapes, _sides, _sideBySide)).ToList();
+    }
+
+    private static string Number(int n) => $"#{n.ToString(CultureInfo.InvariantCulture)}";
+
+    private static int IndexOf(IReadOnlyList<RevisionRecord> records, RevisionRecord record)
+    {
+        for (int i = 0; i < records.Count; i++)
+        {
+            if (ReferenceEquals(records[i], record))
+            {
+                return i;
+            }
+        }
+
+        return -1;
     }
 
     private bool Exists(ItemChange change) => _owner.Items.Any(i => i.Draft is not List<TagDraft> && Matches(i, change))
@@ -320,10 +375,31 @@ public sealed class RevisionRowViewModel(RevisionRecord record, bool isLatest)
     public string AuthorKind => Record.Author;
 }
 
-/// <summary>One changed draft, with its lines.</summary>
-public sealed class ItemChangeViewModel(ItemChange change, bool canOpen, bool drawRungs = false, Func<string, LogicControl.Core.Logic.InstructionShape?>? shapes = null)
+/// <summary>
+/// One changed draft, with its lines - read top to bottom (<see cref="Lines"/>) or as two panes,
+/// the older version on the left and the newer on the right (<see cref="Rows"/>).
+/// </summary>
+public sealed class ItemChangeViewModel
 {
-    public ItemChange Change { get; } = change;
+    private IReadOnlyList<DiffRowViewModel>? _rows;
+    private readonly Func<string, LogicControl.Core.Logic.InstructionShape?>? _shapes;
+    private readonly bool _draw;
+
+    public ItemChangeViewModel(
+        ItemChange change, bool canOpen, bool drawRungs = false, Func<string, LogicControl.Core.Logic.InstructionShape?>? shapes = null,
+        DiffSides? sides = null, bool sideBySide = false)
+    {
+        ArgumentNullException.ThrowIfNull(change);
+        Change = change;
+        CanOpen = canOpen;
+        Sides = sides ?? DiffSides.Default;
+        SideBySide = sideBySide;
+        _draw = drawRungs;
+        _shapes = shapes;
+        Lines = change.Lines.Select(l => new DiffLineViewModel(l, drawRungs && l.IsRung, shapes, Sides)).ToList();
+    }
+
+    public ItemChange Change { get; }
 
     public string Title => Change.Title;
 
@@ -342,19 +418,33 @@ public sealed class ItemChangeViewModel(ItemChange change, bool canOpen, bool dr
 
     public string Summary => Change.Summary;
 
-    public IReadOnlyList<DiffLineViewModel> Lines { get; } =
-        change.Lines.Select(l => new DiffLineViewModel(l, drawRungs && l.IsRung, shapes)).ToList();
+    /// <summary>What the left (older) and right (newer) sides are.</summary>
+    public DiffSides Sides { get; }
+
+    public string BeforeName => Sides.Before;
+
+    public string AfterName => Sides.After;
+
+    /// <summary>Shown as two panes (true) or one list read top to bottom.</summary>
+    public bool SideBySide { get; }
+
+    public IReadOnlyList<DiffLineViewModel> Lines { get; }
+
+    /// <summary>The lines as rows of two panes; built the first time a view asks.</summary>
+    public IReadOnlyList<DiffRowViewModel> Rows => _rows ??= DiffRows.Build(Change.Lines, _draw, _shapes);
 
     /// <summary>The draft still exists, so the title can open it.</summary>
-    public bool CanOpen { get; } = canOpen;
+    public bool CanOpen { get; }
 }
 
 /// <summary>
 /// A line of a change: text, or - for a rung when the view is drawing ladder - the rung drawn,
 /// with a bar and a label saying whether it was added, removed or is unchanged context.
 /// </summary>
-public sealed class DiffLineViewModel(DiffLine line, bool drawn, Func<string, LogicControl.Core.Logic.InstructionShape?>? shapes)
+public sealed class DiffLineViewModel(DiffLine line, bool drawn, Func<string, LogicControl.Core.Logic.InstructionShape?>? shapes, DiffSides? sides = null)
 {
+    private readonly DiffSides _sides = sides ?? DiffSides.Default;
+
     public DiffLine Line { get; } = line;
 
     public DiffLineKind Kind => Line.Kind;
@@ -368,13 +458,17 @@ public sealed class DiffLineViewModel(DiffLine line, bool drawn, Func<string, Lo
 
     public string? Rung => Line.Rung;
 
-    /// <summary>"+ Rung 3 after", "- Rung 3 before", "Rung 4" - the drawn rung's heading.</summary>
-    public string Label => (Kind switch
+    /// <summary>
+    /// "+ Rung 3 (other export)", "- Rung 3 (open project)", "Rung 4" - the drawn rung's heading.
+    /// An added or removed rung says which side it is from, so nobody has to guess what before
+    /// and after mean.
+    /// </summary>
+    public string Label => Kind switch
     {
-        DiffLineKind.Added => "+ ",
-        DiffLineKind.Removed => "- ",
-        _ => string.Empty,
-    }) + (Line.RungLabel ?? string.Empty);
+        DiffLineKind.Added => $"+ {Line.RungLabel} ({_sides.AfterShort})",
+        DiffLineKind.Removed => $"- {Line.RungLabel} ({_sides.BeforeShort})",
+        _ => Line.RungLabel ?? string.Empty,
+    };
 
     public string Comment => Line.RungComment ?? string.Empty;
 

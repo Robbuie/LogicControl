@@ -58,6 +58,14 @@ public partial class MainWindow : Window
             }
         }), Key.A, ModifierKeys.Control | ModifierKeys.Shift));
 
+        InputBindings.Add(new KeyBinding(new RelayKey(() =>
+        {
+            if (ViewModel is { } vm)
+            {
+                vm.ShowNavigator = !vm.ShowNavigator;
+            }
+        }), Key.N, ModifierKeys.Control | ModifierKeys.Shift));
+
         DataContextChanged += OnDataContextChanged;
         Closing += OnClosing;
 
@@ -445,8 +453,74 @@ public partial class MainWindow : Window
             }
 
             vm.Assistant.PropertyChanged += OnAssistantChanged;
+            vm.PropertyChanged += OnMainChanged;
             vm.LineFocusRequested += OnLineFocusRequested;
+            SizeNavigator(vm.ShowNavigator);
             SizeAssistant(vm.Assistant.IsOpen);
+        }
+    }
+
+    // ------------------------------------------------------------------ controller organizer
+
+    /// <summary>The organizer's width when it was last hidden, to come back at.</summary>
+    private GridLength _navigatorWidth;
+
+    private double _navigatorMinWidth;
+
+    private void OnMainChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName == nameof(MainViewModel.ShowNavigator) && sender is MainViewModel vm)
+        {
+            SizeNavigator(vm.ShowNavigator);
+        }
+    }
+
+    private void OnHideNavigator(object sender, RoutedEventArgs e)
+    {
+        if (ViewModel is { } vm)
+        {
+            vm.ShowNavigator = false;
+        }
+    }
+
+    /// <summary>
+    /// Shows or hides the organizer's column. Like the Claude panel's, a hidden column must be zero
+    /// wide with no minimum, or it would still take its space; the width it had comes back with it.
+    /// </summary>
+    private void SizeNavigator(bool show)
+    {
+        if (!show && NavigatorColumn.Width.Value > 0)
+        {
+            _navigatorWidth = NavigatorColumn.Width;
+            _navigatorMinWidth = NavigatorColumn.MinWidth;
+            NavigatorColumn.MinWidth = 0;
+            NavigatorColumn.Width = new GridLength(0);
+            NavigatorSplitterColumn.Width = new GridLength(0);
+        }
+        else if (show && NavigatorColumn.Width.Value <= 0)
+        {
+            NavigatorColumn.MinWidth = _navigatorMinWidth > 0 ? _navigatorMinWidth : 160;
+            if (_navigatorWidth.Value > 0)
+            {
+                NavigatorColumn.Width = _navigatorWidth;
+            }
+            else
+            {
+                NavigatorColumn.SetResourceReference(ColumnDefinition.WidthProperty, "side-w-grid");
+            }
+
+            NavigatorSplitterColumn.Width = new GridLength(8);
+        }
+
+        FitAssistant();
+    }
+
+    /// <summary>The organizer or the Claude panel changed width - by a splitter, or by showing or hiding.</summary>
+    private void OnSideColumnSizeChanged(object sender, SizeChangedEventArgs e)
+    {
+        if (e.WidthChanged)
+        {
+            FitAssistant();
         }
     }
 
@@ -504,11 +578,18 @@ public partial class MainWindow : Window
             return;
         }
 
-        double room = Workspace.ActualWidth - NavigatorColumn.ActualWidth - 8 - 8 - TabsMinWidth;
-        if (room < AssistantColumn.MinWidth)
+        // The organizer's width as it is now (zero when hidden), not its minimum: the maximum below
+        // used to assume the organizer at its minimum, so with it any wider the panel could be
+        // dragged past the window's right edge - and a rung in the chat, stretched to the panel,
+        // lost the outputs on its right to the window frame.
+        double navigator = NavigatorColumn.Width.Value <= 0 ? 0 : NavigatorColumn.ActualWidth;
+        double splitters = NavigatorSplitterColumn.Width.Value + AssistantSplitterColumn.Width.Value;
+        double room = Workspace.ActualWidth - navigator - splitters - TabsMinWidth;
+        if (room < AssistantColumn.MinWidth && navigator > 0)
         {
-            NavigatorColumn.Width = new GridLength(Math.Max(NavigatorColumn.MinWidth, NavigatorColumn.ActualWidth - (AssistantColumn.MinWidth - room)));
-            room = Workspace.ActualWidth - NavigatorColumn.MinWidth - 8 - 8 - TabsMinWidth;
+            navigator = Math.Max(NavigatorColumn.MinWidth, navigator - (AssistantColumn.MinWidth - room));
+            NavigatorColumn.Width = new GridLength(navigator);
+            room = Workspace.ActualWidth - navigator - splitters - TabsMinWidth;
         }
 
         double fit = Math.Max(AssistantColumn.MinWidth, room);
@@ -517,14 +598,49 @@ public partial class MainWindow : Window
             AssistantColumn.Width = new GridLength(fit);
         }
 
-        AssistantColumn.MaxWidth = Math.Max(AssistantColumn.MinWidth, Workspace.ActualWidth - NavigatorColumn.MinWidth - 8 - 8 - TabsMinWidth);
+        AssistantColumn.MaxWidth = fit;
     }
 
-    /// <summary>Hands the wheel from a sideways-scrolling table or rung to the chat around it.</summary>
-    private void OnChatSideScrollWheel(object sender, MouseWheelEventArgs e)
+    /// <summary>
+    /// The wheel over a sideways-scrolling rung, table or pane: Shift+wheel scrolls it sideways;
+    /// the plain wheel goes to the nearest scroller around it that scrolls down - the chat, the
+    /// Compare tab's differences, History - instead of dying in a ScrollViewer that cannot use it.
+    /// </summary>
+    private void OnSideScrollWheel(object sender, MouseWheelEventArgs e)
     {
+        if (sender is not ScrollViewer inner)
+        {
+            return;
+        }
+
         e.Handled = true;
-        ChatScroll.ScrollToVerticalOffset(ChatScroll.VerticalOffset - e.Delta);
+        if ((Keyboard.Modifiers & ModifierKeys.Shift) != 0)
+        {
+            inner.ScrollToHorizontalOffset(inner.HorizontalOffset - e.Delta);
+            return;
+        }
+
+        if (OuterScroller(inner) is { } outer)
+        {
+            outer.ScrollToVerticalOffset(outer.VerticalOffset - e.Delta);
+        }
+    }
+
+    /// <summary>The nearest ScrollViewer above <paramref name="inner"/> that scrolls vertically.</summary>
+    private static ScrollViewer? OuterScroller(DependencyObject inner)
+    {
+        DependencyObject? at = System.Windows.Media.VisualTreeHelper.GetParent(inner);
+        while (at is not null)
+        {
+            if (at is ScrollViewer { VerticalScrollBarVisibility: not ScrollBarVisibility.Disabled } outer)
+            {
+                return outer;
+            }
+
+            at = System.Windows.Media.VisualTreeHelper.GetParent(at);
+        }
+
+        return null;
     }
 
     /// <summary>Copies an answer as the text Claude wrote - tables and rungs included.</summary>
@@ -950,6 +1066,8 @@ public partial class MainWindow : Window
             + "  Esc\tClear the filter\n"
             + "  Ctrl+L\tLadder or neutral text\n"
             + "  Double-click\tA rung to edit it, a finding or a tag use to go to it\n\n"
+            + "Layout\n"
+            + "  Ctrl+Shift+N\tShow or hide the Controller Organizer\n\n"
             + "Claude\n"
             + "  Ctrl+Shift+A\tShow or hide the panel\n"
             + "  Enter\tSend (Shift+Enter for a new line)",

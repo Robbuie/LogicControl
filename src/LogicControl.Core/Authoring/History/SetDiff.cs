@@ -223,12 +223,19 @@ public static class SetDiff
                     {
                         changed++;
                         touched.Add(a);
-                        body.Add(new DiffLine(DiffLineKind.Removed, $"- Rung {N(b)}  {before[b].Text}") { Rung = before[b].Text, RungLabel = $"Rung {N(b)} before", RungComment = before[b].Comment });
-                        body.Add(new DiffLine(DiffLineKind.Added, $"+ Rung {N(a)}  {after[a].Text}") { Rung = after[a].Text, RungLabel = $"Rung {N(a)} after", RungComment = after[a].Comment });
+                        body.Add(new DiffLine(DiffLineKind.Removed, $"- Rung {N(b)}  {before[b].Text}") { Rung = before[b].Text, RungLabel = $"Rung {N(b)}", RungComment = before[b].Comment, IsEdit = true });
+                        body.Add(new DiffLine(DiffLineKind.Added, $"+ Rung {N(a)}  {after[a].Text}") { Rung = after[a].Text, RungLabel = $"Rung {N(a)}", RungComment = after[a].Comment, IsEdit = true });
                     }
                     else
                     {
-                        body.Add(new DiffLine(DiffLineKind.Context, $"  Rung {N(a)}  {after[a].Text}") { Rung = after[a].Text, RungLabel = $"Rung {N(a)}", RungComment = after[a].Comment });
+                        body.Add(new DiffLine(DiffLineKind.Context, $"  Rung {N(a)}  {after[a].Text}")
+                        {
+                            Rung = after[a].Text,
+                            RungLabel = $"Rung {N(a)}",
+                            RungComment = after[a].Comment,
+                            BeforeRungLabel = $"Rung {N(b)}",
+                            BeforeRungComment = before[b].Comment,
+                        });
                     }
 
                     if (!SameComment(before[b].Comment, after[a].Comment))
@@ -239,7 +246,11 @@ public static class SetDiff
                             touched.Add(a);
                         }
 
-                        body.Add(new DiffLine(DiffLineKind.Changed, $"~ Rung {N(a)} comment: {Quote(before[b].Comment)} → {Quote(after[a].Comment)}"));
+                        body.Add(new DiffLine(DiffLineKind.Changed, $"~ Rung {N(a)} comment: {Quote(before[b].Comment)} → {Quote(after[a].Comment)}")
+                        {
+                            BeforeText = $"Rung {N(b)} comment: {Quote(before[b].Comment)}",
+                            AfterText = $"Rung {N(a)} comment: {Quote(after[a].Comment)}",
+                        });
                     }
 
                     break;
@@ -311,7 +322,7 @@ public static class SetDiff
         }
         else
         {
-            lines.Add(new DiffLine(DiffLineKind.Changed, $"~ {label}: {before} → {after}"));
+            lines.Add(new DiffLine(DiffLineKind.Changed, $"~ {label}: {before} → {after}") { BeforeText = $"{label}: {before}", AfterText = $"{label}: {after}" });
         }
     }
 
@@ -336,7 +347,7 @@ public static class SetDiff
             else if (!string.Equals(describe(was), describe(item), StringComparison.Ordinal))
             {
                 changed++;
-                body.Add(new DiffLine(DiffLineKind.Changed, $"~ {describe(was)} → {describe(item)}"));
+                body.Add(new DiffLine(DiffLineKind.Changed, $"~ {describe(was)} → {describe(item)}") { BeforeText = describe(was), AfterText = describe(item) });
             }
         }
 
@@ -351,7 +362,11 @@ public static class SetDiff
         bool reordered = !keptBefore.SequenceEqual(keptAfter, StringComparer.OrdinalIgnoreCase);
         if (reordered)
         {
-            body.Add(new DiffLine(DiffLineKind.Changed, $"~ Order: {string.Join(", ", keptAfter)}"));
+            body.Add(new DiffLine(DiffLineKind.Changed, $"~ Order: {string.Join(", ", keptAfter)}")
+            {
+                BeforeText = $"Order: {string.Join(", ", keptBefore)}",
+                AfterText = $"Order: {string.Join(", ", keptAfter)}",
+            });
         }
 
         if (body.Count == 0)

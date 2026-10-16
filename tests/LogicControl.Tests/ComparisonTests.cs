@@ -141,9 +141,27 @@ public class ComparisonTests
         compare.Load(ProjectAnalysis.Analyse(Edited()));
 
         Assert.Equal("6 differences.", compare.Summary);
-        Assert.Contains("Line3_contractor.L5X", compare.Direction, StringComparison.Ordinal);
+        Assert.StartsWith("Left: the open project.", compare.Direction, StringComparison.Ordinal);
+        Assert.StartsWith("Open project - ", compare.Sides.Before, StringComparison.Ordinal);
+        Assert.Contains("Line3_contractor.L5X", compare.Sides.After, StringComparison.Ordinal);
         ItemChangeViewModel motors = compare.Changes.Single(c => c.Name == "MainProgram/Motors");
         Assert.Contains(motors.Lines, l => l.IsDrawn);
+
+        // Two panes by default: the changed rung is one row, the open project's on the left and the
+        // other export's on the right, each labelled with its own rung number.
+        Assert.True(motors.SideBySide);
+        Assert.Equal(compare.Sides, motors.Sides);
+        DiffRowViewModel edited = Assert.Single(motors.Rows, r => r.IsPair && r.Left!.Kind == DiffLineKind.Removed && r.Right!.Kind == DiffLineKind.Added);
+        Assert.Equal("XIC(Manual_Mode)XIO(Line_Running)OTE(Conveyor_Run);", edited.Right!.Rung);
+        Assert.True(edited.Left!.IsDrawn);
+        Assert.Equal("Rung 3", edited.Left.Label);
+        Assert.Equal("Rung 3", edited.Right.Label);
+        Assert.Contains(motors.Lines, l => l.Label == "+ Rung 3 (other export)");
+        Assert.Contains(motors.Lines, l => l.Label == "- Rung 3 (open project)");
+        compare.Stacked = true;
+        Assert.False(compare.Changes.Single(c => c.Name == "MainProgram/Motors").SideBySide);
+        compare.SideBySide = true;
+        motors = compare.Changes.Single(c => c.Name == "MainProgram/Motors");
 
         // The type exists only in the open project: nothing to take.
         compare.SelectedChange = compare.Changes.Single(c => c.Name == "UDT_Spare");
@@ -168,6 +186,8 @@ public class ComparisonTests
         Assert.Equal(4, compare.Changes.Count);
         compare.Swapped = true;
         Assert.Equal(ItemChangeKind.Added.ToString(), compare.Changes.Single(c => c.Name == "UDT_Spare").Kind);
+        Assert.StartsWith("Other export - ", compare.Sides.Before, StringComparison.Ordinal);
+        Assert.StartsWith("Left: the other export.", compare.Direction, StringComparison.Ordinal);
         compare.Close();
         Assert.False(compare.HasOther);
         Assert.Empty(compare.Changes);

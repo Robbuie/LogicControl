@@ -21,48 +21,146 @@
        on the left and the tabs on the right. -->
 
   <Window.Resources>
-    <!-- The lines of one change - rungs drawn as ladder or listed as text - shared by History and Compare. -->
-    <DataTemplate x:Key="ChangeLines" DataType="{x:Type dev:ItemChangeViewModel}">
-            <ItemsControl ItemsSource="{Binding Lines}" Margin="0,6,0,0">
-              <ItemsControl.ItemTemplate>
-                <DataTemplate DataType="{x:Type dev:DiffLineViewModel}">
-                  <StackPanel>
-                    <TextBlock Style="{StaticResource DiffLineText}" Text="{Binding Text}"
-                               Visibility="{Binding IsPrinted, Converter={StaticResource BoolToVisible}}" />
-      
-                    <!-- A rung drawn as ladder: a coloured bar for added or removed, its label and comment above -->
-                    <Border Style="{StaticResource LogicLineRow}" Padding="0,4"
-                            Visibility="{Binding IsDrawn, Converter={StaticResource BoolToVisible}}">
-                      <Grid>
-                        <Grid.ColumnDefinitions>
-                          <ColumnDefinition Width="8" />
-                          <ColumnDefinition Width="*" />
-                        </Grid.ColumnDefinitions>
-                        <Border Grid.Column="0" Style="{StaticResource ChangeBar}" />
-                        <StackPanel Grid.Column="1">
-                          <TextBlock Margin="2,0,0,2">
-                            <Run Text="{Binding Label, Mode=OneWay}" FontWeight="SemiBold" Foreground="{DynamicResource txt-1}" /><Run
-                                 Text="   " /><Run Text="{Binding Comment, Mode=OneWay}" FontStyle="Italic" Foreground="{DynamicResource good}" />
-                          </TextBlock>
-                          <ScrollViewer x:Name="diffRungScroll" HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Disabled">
-                            <views:LadderRungView Style="{StaticResource LadderRung}" Text="{Binding Rung}" Shapes="{Binding Shapes}"
-                                                  ViewportWidth="{Binding ViewportWidth, ElementName=diffRungScroll}" ViewportInset="4"
-                                                  ToolTip="{Binding Rung}" />
-                          </ScrollViewer>
-                        </StackPanel>
-                      </Grid>
-                    </Border>
-                  </StackPanel>
-                </DataTemplate>
-              </ItemsControl.ItemTemplate>
-            </ItemsControl>
-    </DataTemplate>
-
-    <!-- A table or rung in the chat scrolls sideways; the wheel still scrolls the chat. -->
-    <Style x:Key="ChatSideScroll" TargetType="ScrollViewer">
+    <!-- A rung, table or code block that scrolls sideways inside something that scrolls down. A
+         ScrollViewer takes the wheel even when it cannot scroll that way, which left the Compare
+         tab, History and the chat dead under the mouse wherever a rung was drawn; this hands the
+         wheel to the scroller around it, and Shift+wheel scrolls this one sideways. -->
+    <Style x:Key="SideScroll" TargetType="ScrollViewer">
       <Setter Property="HorizontalScrollBarVisibility" Value="Auto" />
       <Setter Property="VerticalScrollBarVisibility" Value="Disabled" />
-      <EventSetter Event="PreviewMouseWheel" Handler="OnChatSideScrollWheel" />
+      <EventSetter Event="PreviewMouseWheel" Handler="OnSideScrollWheel" />
+    </Style>
+
+    <!-- A table or rung in the chat: the same. -->
+    <Style x:Key="ChatSideScroll" TargetType="ScrollViewer" BasedOn="{StaticResource SideScroll}" />
+
+    <!-- The lines of one change read top to bottom - rungs drawn as ladder or listed as text -
+         shared by History and Compare. Removed rungs are labelled with the side they come from. -->
+    <DataTemplate x:Key="ChangeLinesStacked" DataType="{x:Type dev:ItemChangeViewModel}">
+      <StackPanel Margin="0,6,0,0">
+        <TextBlock Style="{StaticResource Muted}" TextWrapping="Wrap" Margin="0,0,0,4">
+          <Run Text="- " Foreground="{DynamicResource bad}" FontWeight="SemiBold" /><Run Text="{Binding BeforeName, Mode=OneWay}" /><Run
+               Text="     " /><Run Text="+ " Foreground="{DynamicResource good}" FontWeight="SemiBold" /><Run Text="{Binding AfterName, Mode=OneWay}" />
+        </TextBlock>
+        <ItemsControl ItemsSource="{Binding Lines}">
+          <ItemsControl.ItemTemplate>
+            <DataTemplate DataType="{x:Type dev:DiffLineViewModel}">
+              <StackPanel>
+                <TextBlock Style="{StaticResource DiffLineText}" Text="{Binding Text}"
+                           Visibility="{Binding IsPrinted, Converter={StaticResource BoolToVisible}}" />
+
+                <!-- A rung drawn as ladder: a coloured bar for added or removed, its label and comment above -->
+                <Border Style="{StaticResource LogicLineRow}" Padding="0,4"
+                        Visibility="{Binding IsDrawn, Converter={StaticResource BoolToVisible}}">
+                  <Grid>
+                    <Grid.ColumnDefinitions>
+                      <ColumnDefinition Width="8" />
+                      <ColumnDefinition Width="*" />
+                    </Grid.ColumnDefinitions>
+                    <Border Grid.Column="0" Style="{StaticResource ChangeBar}" />
+                    <StackPanel Grid.Column="1">
+                      <TextBlock Margin="2,0,0,2">
+                        <Run Text="{Binding Label, Mode=OneWay}" FontWeight="SemiBold" Foreground="{DynamicResource txt-1}" /><Run
+                             Text="   " /><Run Text="{Binding Comment, Mode=OneWay}" FontStyle="Italic" Foreground="{DynamicResource good}" />
+                      </TextBlock>
+                      <ScrollViewer Style="{StaticResource SideScroll}">
+                        <views:LadderRungView Style="{StaticResource LadderRung}" Text="{Binding Rung}" Shapes="{Binding Shapes}"
+                                              ToolTip="{Binding Rung}" />
+                      </ScrollViewer>
+                    </StackPanel>
+                  </Grid>
+                </Border>
+              </StackPanel>
+            </DataTemplate>
+          </ItemsControl.ItemTemplate>
+        </ItemsControl>
+      </StackPanel>
+    </DataTemplate>
+
+    <!-- One side of a two-pane row: a rung (drawn or as text) with its label and comment, a line
+         of text, or a dash where the other side has something this one does not. -->
+    <DataTemplate x:Key="DiffCell" DataType="{x:Type dev:DiffCellViewModel}">
+      <Border Style="{StaticResource DiffCell}">
+        <Grid>
+          <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="8" />
+            <ColumnDefinition Width="*" />
+          </Grid.ColumnDefinitions>
+          <Border Grid.Column="0" Style="{StaticResource ChangeBar}" />
+          <StackPanel Grid.Column="1">
+            <TextBlock Margin="2,0,0,2" TextWrapping="Wrap" Visibility="{Binding HasLabel, Converter={StaticResource BoolToVisible}}">
+              <Run Text="{Binding Label, Mode=OneWay}" FontWeight="SemiBold" Foreground="{DynamicResource txt-1}" /><Run
+                   Text="   " /><Run Text="{Binding Comment, Mode=OneWay}" FontStyle="Italic" Foreground="{DynamicResource good}" />
+            </TextBlock>
+            <ScrollViewer Style="{StaticResource SideScroll}"
+                          Visibility="{Binding IsDrawn, Converter={StaticResource BoolToVisible}}">
+              <views:LadderRungView Style="{StaticResource LadderRung}" Text="{Binding Rung}" Shapes="{Binding Shapes}"
+                                    ToolTip="{Binding Rung}" />
+            </ScrollViewer>
+            <TextBlock Style="{StaticResource DiffCellText}" Text="{Binding Rung}"
+                       Visibility="{Binding IsRungText, Converter={StaticResource BoolToVisible}}" />
+            <TextBlock Style="{StaticResource DiffCellText}" Text="{Binding Text}"
+                       Visibility="{Binding IsText, Converter={StaticResource BoolToVisible}}" />
+            <TextBlock Style="{StaticResource Muted}" Text="&#x2014;" Margin="2,0,0,0"
+                       Visibility="{Binding IsEmpty, Converter={StaticResource BoolToVisible}}" />
+          </StackPanel>
+        </Grid>
+      </Border>
+    </DataTemplate>
+
+    <!-- The lines of one change as two panes: the older version on the left, the newer on the
+         right, each headed with what it is - "Open project - Line3 (Line3.L5X)", "Revision #4" -
+         so nobody has to work out which is before and which is after. -->
+    <DataTemplate x:Key="ChangeLinesPanes" DataType="{x:Type dev:ItemChangeViewModel}">
+      <StackPanel Margin="0,6,0,0">
+        <Grid Margin="0,0,0,4">
+          <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="*" />
+            <ColumnDefinition Width="8" />
+            <ColumnDefinition Width="*" />
+          </Grid.ColumnDefinitions>
+          <Border Grid.Column="0" Style="{StaticResource DiffPaneHead}" BorderBrush="{DynamicResource bad}">
+            <TextBlock Text="{Binding BeforeName}" FontWeight="SemiBold" Foreground="{DynamicResource txt-0}" TextTrimming="CharacterEllipsis"
+                       ToolTip="{Binding BeforeName}" />
+          </Border>
+          <Border Grid.Column="2" Style="{StaticResource DiffPaneHead}" BorderBrush="{DynamicResource good}">
+            <TextBlock Text="{Binding AfterName}" FontWeight="SemiBold" Foreground="{DynamicResource txt-0}" TextTrimming="CharacterEllipsis"
+                       ToolTip="{Binding AfterName}" />
+          </Border>
+        </Grid>
+        <ItemsControl ItemsSource="{Binding Rows}">
+          <ItemsControl.ItemTemplate>
+            <DataTemplate DataType="{x:Type dev:DiffRowViewModel}">
+              <Grid>
+                <TextBlock Text="{Binding Text}" FontWeight="SemiBold" Foreground="{DynamicResource txt-0}" Margin="0,8,0,3"
+                           Visibility="{Binding IsHeading, Converter={StaticResource BoolToVisible}}" />
+                <TextBlock Style="{StaticResource DiffCellText}" Text="{Binding Text}" Foreground="{DynamicResource txt-2}" HorizontalAlignment="Center"
+                           Visibility="{Binding IsNote, Converter={StaticResource BoolToVisible}}" />
+                <Grid Visibility="{Binding IsPair, Converter={StaticResource BoolToVisible}}">
+                  <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="8" />
+                    <ColumnDefinition Width="*" />
+                  </Grid.ColumnDefinitions>
+                  <ContentControl Grid.Column="0" Focusable="False" Content="{Binding Left}" ContentTemplate="{StaticResource DiffCell}" />
+                  <ContentControl Grid.Column="2" Focusable="False" Content="{Binding Right}" ContentTemplate="{StaticResource DiffCell}" />
+                </Grid>
+              </Grid>
+            </DataTemplate>
+          </ItemsControl.ItemTemplate>
+        </ItemsControl>
+      </StackPanel>
+    </DataTemplate>
+
+    <!-- History and Compare show a change as two panes or one list, as the view's toggle says. -->
+    <Style x:Key="ChangeLines" TargetType="ContentControl">
+      <Setter Property="Focusable" Value="False" />
+      <Setter Property="ContentTemplate" Value="{StaticResource ChangeLinesStacked}" />
+      <Style.Triggers>
+        <DataTrigger Binding="{Binding SideBySide}" Value="True">
+          <Setter Property="ContentTemplate" Value="{StaticResource ChangeLinesPanes}" />
+        </DataTrigger>
+      </Style.Triggers>
     </Style>
 
     <!-- Navigator rows: icon, name, a muted badge, and a status dot when something is wrong. -->
@@ -140,6 +238,8 @@
           <MenuItem Header="_Fit" Command="{Binding ZoomResetCommand}" Click="OnShowTab" Tag="3" />
         </MenuItem>
         <Separator />
+        <MenuItem Header="Controller _Organizer" IsCheckable="True" IsChecked="{Binding ShowNavigator, Mode=TwoWay}" InputGestureText="Ctrl+Shift+N"
+                  ToolTip="Show or hide the project tree on the left" />
         <MenuItem Header="Claude assista_nt" IsCheckable="True" IsChecked="{Binding Assistant.IsOpen, Mode=TwoWay}" InputGestureText="Ctrl+Shift+A" />
         <!-- The same three axes as Redline PDF, the DWG viewer, File Manager and NetControl. -->
         <MenuItem Header="_Appearance..." Click="OnAppearance"
@@ -200,6 +300,8 @@
         <MenuItem Header="_Swap direction" Command="{Binding Compare.SwapCommand}" Click="OnShowTab" Tag="8"
                   ToolTip="Read the other export as the starting point instead" />
         <MenuItem Header="Show _all differences" Command="{Binding Compare.ShowAllCommand}" Click="OnShowTab" Tag="8" />
+        <MenuItem Header="Side _by side" IsCheckable="True" IsChecked="{Binding Compare.SideBySide, Mode=TwoWay}" Click="OnShowTab" Tag="8"
+                  ToolTip="Two panes, one export on each side. Off lists each change top to bottom." />
         <MenuItem Header="_Use the other version" Command="{Binding Compare.TakeOtherCommand}" Click="OnShowTab" Tag="8"
                   ToolTip="Take the selected difference from the other export into the Develop tab" />
         <Separator />
@@ -250,6 +352,27 @@
 
     <!-- ================================================================ toolbar -->
     <DockPanel Grid.Row="0" Margin="2,2,2,8" LastChildFill="False">
+      <ToggleButton DockPanel.Dock="Left" IsChecked="{Binding ShowNavigator, Mode=TwoWay}" Margin="0,0,8,0"
+                    ToolTip="Show or hide the Controller Organizer (Ctrl+Shift+N)" Height="{DynamicResource tbtn-h}" Padding="8,0" Cursor="Hand">
+        <ToggleButton.Template>
+          <ControlTemplate TargetType="ToggleButton">
+            <Border x:Name="chrome" Background="{DynamicResource bg-2}" BorderBrush="{DynamicResource line}" BorderThickness="1"
+                    CornerRadius="{DynamicResource corner-sm}" Padding="{TemplateBinding Padding}">
+              <TextBlock x:Name="glyph" Style="{StaticResource Glyph}" FontSize="13" Text="&#xE89F;" Foreground="{DynamicResource txt-1}" VerticalAlignment="Center" />
+            </Border>
+            <ControlTemplate.Triggers>
+              <Trigger Property="IsMouseOver" Value="True">
+                <Setter TargetName="chrome" Property="Background" Value="{DynamicResource bg-3}" />
+              </Trigger>
+              <Trigger Property="IsChecked" Value="True">
+                <Setter TargetName="chrome" Property="Background" Value="{DynamicResource accent-soft}" />
+                <Setter TargetName="chrome" Property="BorderBrush" Value="{DynamicResource accent-line}" />
+                <Setter TargetName="glyph" Property="Foreground" Value="{DynamicResource accent-on-chrome}" />
+              </Trigger>
+            </ControlTemplate.Triggers>
+          </ControlTemplate>
+        </ToggleButton.Template>
+      </ToggleButton>
       <Button DockPanel.Dock="Left" Style="{StaticResource PrimaryButton}" Click="OnOpen"
               ToolTip="Open a Studio 5000 L5X export (Ctrl+O). You can also drop the file on this window.">
         <StackPanel Orientation="Horizontal">
@@ -367,21 +490,31 @@
           SizeChanged="OnWorkspaceSizeChanged">
       <Grid.ColumnDefinitions>
         <ColumnDefinition x:Name="NavigatorColumn" Width="{DynamicResource side-w-grid}" MinWidth="160" />
-        <ColumnDefinition Width="8" />
+        <ColumnDefinition x:Name="NavigatorSplitterColumn" Width="8" />
         <ColumnDefinition Width="*" MinWidth="360" />
         <ColumnDefinition x:Name="AssistantSplitterColumn" Width="0" />
         <ColumnDefinition x:Name="AssistantColumn" Width="0" />
       </Grid.ColumnDefinitions>
 
       <!-- Navigator -->
-      <Border Grid.Column="0" Style="{StaticResource Card}" Padding="6,10,6,6">
+      <!-- Hidden from View > Controller Organizer (Ctrl+Shift+N), its header's button or the toolbar;
+           the columns are sized from code-behind, like the Claude panel's. -->
+      <Border x:Name="NavigatorCard" Grid.Column="0" Style="{StaticResource Card}" Padding="6,10,6,6"
+              Visibility="{Binding ShowNavigator, Converter={StaticResource BoolToVisible}}" SizeChanged="OnSideColumnSizeChanged">
         <DockPanel>
-          <TextBlock DockPanel.Dock="Top" Style="{StaticResource PanelHead}" Text="CONTROLLER ORGANIZER" Margin="6,0,0,8" />
+          <DockPanel DockPanel.Dock="Top" Margin="6,0,0,8">
+            <Button DockPanel.Dock="Right" Style="{StaticResource ToolButton}" Click="OnHideNavigator" Padding="6,0" Margin="0"
+                    Height="20" VerticalAlignment="Center" ToolTip="Hide the Controller Organizer (Ctrl+Shift+N)">
+              <TextBlock Style="{StaticResource Glyph}" FontSize="10" Text="&#xE76B;" />
+            </Button>
+            <TextBlock Style="{StaticResource PanelHead}" Text="CONTROLLER ORGANIZER" VerticalAlignment="Center" />
+          </DockPanel>
           <TreeView x:Name="Navigator" ItemsSource="{Binding Navigator}" SelectedItemChanged="OnNavigatorSelected" />
         </DockPanel>
       </Border>
 
-      <GridSplitter Grid.Column="1" Style="{StaticResource ColumnSplitter}" />
+      <GridSplitter Grid.Column="1" Style="{StaticResource ColumnSplitter}"
+                    Visibility="{Binding ShowNavigator, Converter={StaticResource BoolToVisible}}" />
 
       <!-- Tabs -->
       <Border Grid.Column="2" Style="{StaticResource Card}" Padding="0">
@@ -1264,25 +1397,34 @@
                     <GridSplitter Grid.Column="1" Style="{StaticResource ColumnSplitter}" />
 
                     <DockPanel Grid.Column="2">
-                      <DockPanel DockPanel.Dock="Top" Margin="0,0,0,8">
+                      <!-- Wraps rather than clipping when the editor area is narrow. -->
+                      <DockPanel DockPanel.Dock="Top" Margin="0,0,0,4">
                         <Button DockPanel.Dock="Right" Style="{StaticResource PrimaryButton}" Content="Go back to this revision"
-                                Command="{Binding RevertCommand}" VerticalAlignment="Center"
+                                Command="{Binding RevertCommand}" VerticalAlignment="Top" Margin="8,0,0,4"
                                 ToolTip="Put every draft back as it was after the selected revision. The revert is recorded too, so it can be undone." />
-                        <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Center" Margin="0,0,10,0">
-                          <RadioButton Style="{StaticResource SegmentToggle}" Tag="first" Content="Ladder" GroupName="HistoryDraw"
-                                       IsChecked="{Binding ShowLadder, Mode=TwoWay}" ToolTip="Draw changed rungs as ladder" />
-                          <RadioButton Style="{StaticResource SegmentToggle}" Tag="last" Content="Text" GroupName="HistoryDraw"
-                                       IsChecked="{Binding ShowText, Mode=TwoWay}" ToolTip="List changed rungs as neutral text" />
-                        </StackPanel>
-                        <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                          <RadioButton Style="{StaticResource SegmentToggle}" Tag="first" Content="This step" GroupName="HistoryMode"
-                                       IsChecked="{Binding IsStep, Mode=TwoWay}" ToolTip="What the selected revision changed" />
-                          <RadioButton Style="{StaticResource SegmentToggle}" Content="Since then" GroupName="HistoryMode"
-                                       IsChecked="{Binding IsSince, Mode=TwoWay}" ToolTip="Everything changed after the selected revision - what going back would undo" />
-                          <RadioButton Style="{StaticResource SegmentToggle}" Tag="last" Content="Against the project" GroupName="HistoryMode"
-                                       IsChecked="{Binding IsProject, Mode=TwoWay}" IsEnabled="{Binding HasProject}"
-                                       ToolTip="What the drafts change in the open project" />
-                        </StackPanel>
+                        <WrapPanel>
+                          <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="0,0,10,4">
+                            <RadioButton Style="{StaticResource SegmentToggle}" Tag="first" Content="This step" GroupName="HistoryMode"
+                                         IsChecked="{Binding IsStep, Mode=TwoWay}" ToolTip="What the selected revision changed" />
+                            <RadioButton Style="{StaticResource SegmentToggle}" Content="Since then" GroupName="HistoryMode"
+                                         IsChecked="{Binding IsSince, Mode=TwoWay}" ToolTip="Everything changed after the selected revision - what going back would undo" />
+                            <RadioButton Style="{StaticResource SegmentToggle}" Tag="last" Content="Against the project" GroupName="HistoryMode"
+                                         IsChecked="{Binding IsProject, Mode=TwoWay}" IsEnabled="{Binding HasProject}"
+                                         ToolTip="What the drafts change in the open project" />
+                          </StackPanel>
+                          <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="0,0,10,4">
+                            <RadioButton Style="{StaticResource SegmentToggle}" Tag="first" Content="Ladder" GroupName="HistoryDraw"
+                                         IsChecked="{Binding ShowLadder, Mode=TwoWay}" ToolTip="Draw changed rungs as ladder" />
+                            <RadioButton Style="{StaticResource SegmentToggle}" Tag="last" Content="Text" GroupName="HistoryDraw"
+                                         IsChecked="{Binding ShowText, Mode=TwoWay}" ToolTip="List changed rungs as neutral text" />
+                          </StackPanel>
+                          <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="0,0,10,4">
+                            <RadioButton Style="{StaticResource SegmentToggle}" Tag="first" Content="Side by side" GroupName="HistoryLayout"
+                                         IsChecked="{Binding SideBySide, Mode=TwoWay}" ToolTip="The older version on the left, the newer on the right" />
+                            <RadioButton Style="{StaticResource SegmentToggle}" Tag="last" Content="Stacked" GroupName="HistoryLayout"
+                                         IsChecked="{Binding Stacked, Mode=TwoWay}" ToolTip="One list, read top to bottom" />
+                          </StackPanel>
+                        </WrapPanel>
                       </DockPanel>
                       <TextBlock DockPanel.Dock="Top" Style="{StaticResource Muted}" Text="{Binding Caption}" TextWrapping="Wrap" Margin="0,0,0,8" />
 
@@ -1301,7 +1443,7 @@
                                             CommandParameter="{Binding}" ToolTip="Open this draft" VerticalAlignment="Center" />
                                     <TextBlock Style="{StaticResource Muted}" Text="{Binding Summary}" Margin="10,0,0,0" VerticalAlignment="Center" />
                                   </StackPanel>
-                                  <ContentControl Content="{Binding}" ContentTemplate="{StaticResource ChangeLines}" />
+                                  <ContentControl Content="{Binding}" Style="{StaticResource ChangeLines}" />
                                 </StackPanel>
                               </Border>
                             </DataTemplate>
@@ -1740,7 +1882,13 @@
                 <RadioButton Style="{StaticResource SegmentToggle}" Tag="first" Content="Ladder" GroupName="CompareDraw"
                              IsChecked="{Binding ShowLadder, Mode=TwoWay}" Margin="0,0,0,4" />
                 <RadioButton Style="{StaticResource SegmentToggle}" Tag="last" Content="Text" GroupName="CompareDraw"
-                             IsChecked="{Binding ShowText, Mode=TwoWay}" Margin="0,0,0,4" />
+                             IsChecked="{Binding ShowText, Mode=TwoWay}" Margin="0,0,12,4" />
+                <RadioButton Style="{StaticResource SegmentToggle}" Tag="first" Content="Side by side" GroupName="CompareLayout"
+                             IsChecked="{Binding SideBySide, Mode=TwoWay}" Margin="0,0,0,4"
+                             ToolTip="Two panes: the starting export on the left, the one it is compared with on the right" />
+                <RadioButton Style="{StaticResource SegmentToggle}" Tag="last" Content="Stacked" GroupName="CompareLayout"
+                             IsChecked="{Binding Stacked, Mode=TwoWay}" Margin="0,0,0,4"
+                             ToolTip="One list, read top to bottom: each changed rung's old version above its new one" />
               </WrapPanel>
 
               <!-- Nothing open yet -->
@@ -1795,7 +1943,7 @@
                     <TextBlock Style="{StaticResource PanelTitle}" Text="{Binding Title}" FontSize="15" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
                   </DockPanel>
                   <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
-                    <ContentControl Content="{Binding}" ContentTemplate="{StaticResource ChangeLines}" />
+                    <ContentControl Content="{Binding}" Style="{StaticResource ChangeLines}" />
                   </ScrollViewer>
                 </DockPanel>
               </Grid>
@@ -1812,7 +1960,7 @@
                     Visibility="{Binding Assistant.IsOpen, Converter={StaticResource BoolToVisible}}" />
 
       <Border Grid.Column="4" Style="{StaticResource Card}" Padding="0" DataContext="{Binding Assistant}"
-              Visibility="{Binding IsOpen, Converter={StaticResource BoolToVisible}}">
+              Visibility="{Binding IsOpen, Converter={StaticResource BoolToVisible}}" SizeChanged="OnSideColumnSizeChanged">
         <DockPanel>
           <!-- Header -->
           <DockPanel DockPanel.Dock="Top" Margin="12,10,8,8">
@@ -1971,10 +2119,9 @@
                                       <TextBlock Text="{Binding Caption}" Style="{StaticResource Muted}" TextWrapping="Wrap" VerticalAlignment="Center"
                                                  Visibility="{Binding HasCaption, Converter={StaticResource BoolToVisible}}" />
                                     </DockPanel>
-                                    <ScrollViewer x:Name="rungScroll" Style="{StaticResource ChatSideScroll}">
+                                    <ScrollViewer Style="{StaticResource ChatSideScroll}">
                                       <views:LadderRungView Style="{StaticResource LadderRung}" Text="{Binding Text}"
-                                                            Shapes="{Binding DataContext.Assistant.Shapes, RelativeSource={RelativeSource AncestorType=Window}}"
-                                                            ViewportWidth="{Binding ViewportWidth, ElementName=rungScroll}" ViewportInset="4" />
+                                                            Shapes="{Binding DataContext.Assistant.Shapes, RelativeSource={RelativeSource AncestorType=Window}}" />
                                     </ScrollViewer>
                                     <TextBox Style="{StaticResource ChatText}" FontFamily="{DynamicResource mono}" Text="{Binding Text, Mode=OneWay}" Margin="2,4,2,0"
                                              Visibility="{Binding IsChecked, ElementName=showText, Converter={StaticResource BoolToVisible}}" />

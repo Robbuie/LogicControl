@@ -1,5 +1,27 @@
 # Changelog
 
+## 0.5.4 - compares side by side
+
+- **Compare and History show two panes**: the older version on the left, the newer on the right,
+  a changed rung on one row with each side's own rung number and comment. Each pane is headed
+  with what it is - "Open project - Line3 (Line3.L5X)" and "Other export - ...", "Revision #4"
+  and "Revision #5", "Project" and "Drafts" - instead of a bare before and after. Stacked (one
+  list, top to bottom) is still a toggle away, and its rung labels now name their side too.
+- **The mouse wheel scrolls the Compare tab and History** wherever the pointer is. A drawn rung
+  sat in its own sideways scroller, which swallowed the wheel; it now goes to the list around it,
+  and Shift+wheel scrolls the rung sideways. The same for rungs and tables in the Claude panel.
+- **Hide the Controller Organizer** (View > Controller Organizer, Ctrl+Shift+N, the button in its
+  header or at the left of the toolbar) to give the tabs the whole width. It comes back at the
+  width it had.
+- **Claude panel: rungs keep their outputs in view.** The panel could be dragged wider than the
+  window allowed once the organizer was wider than its minimum, cutting off the right of the
+  panel - and of every rung, whose outputs sit against the right rail. Its maximum now follows
+  the organizer's real width. A rung in a scroller also asks only for its natural width, so a
+  width left over from before a resize can no longer lay it out past the edge.
+- **Claude panel: tables wrap and resize.** Long cells wrap inside their column instead of being
+  cut off at its edge. Drag the divider at a column's right edge to resize it; double-click the
+  divider to fit the column to its text.
+
 ## 0.5.3 - the menu bar shows
 
 - **The menus are visible.** They were handed to the custom title bar, which never drew them, so

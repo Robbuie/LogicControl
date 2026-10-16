@@ -126,12 +126,21 @@ public sealed class LadderRungView : FrameworkElement
 
     protected override Size MeasureOverride(Size availableSize)
     {
-        double width = double.IsInfinity(availableSize.Width)
-            ? Math.Max(0, ViewportWidth - ViewportInset)
-            : availableSize.Width;
+        double width = !double.IsInfinity(availableSize.Width) ? availableSize.Width
+            : DirectlyScrolled ? 0
+            : Math.Max(0, ViewportWidth - ViewportInset);
         LadderDiagram diagram = Layout(width);
         return new Size(Math.Max(diagram.Width, width), diagram.Height + ProblemHeight());
     }
+
+    /// <summary>
+    /// The rung is a ScrollViewer's own content (a rung in the chat or in a comparison pane). Then
+    /// it asks only for its natural width: the ScrollViewer arranges it at least as wide as what is
+    /// on screen, and the arrange pushes the outputs to the right rail. Measuring against a
+    /// <see cref="ViewportWidth"/> instead could use a width from before a resize, laying the rung
+    /// out wider than the panel, with the outputs off its right edge.
+    /// </summary>
+    private bool DirectlyScrolled => VisualTreeHelper.GetParent(this) is ScrollContentPresenter;
 
     protected override Size ArrangeOverride(Size finalSize)
     {

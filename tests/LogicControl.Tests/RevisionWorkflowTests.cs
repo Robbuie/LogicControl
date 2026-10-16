@@ -163,9 +163,20 @@ public class RevisionWorkflowTests
         Assert.True(history.ShowLadder);
         DiffLineViewModel drawn = Assert.Single(change.Lines, l => l.IsDrawn && l.Kind == DiffLineKind.Added);
         Assert.Equal("XIC(Line_Running)XIC(E_Stop_OK)OTE(Conveyor_Run);", drawn.Rung);
-        Assert.Equal("+ Rung 2 after", drawn.Label);
+        string latest = $"#{history.Revisions[0].Number.ToString(System.Globalization.CultureInfo.InvariantCulture)}";
+        string previous = $"#{history.Revisions[1].Number.ToString(System.Globalization.CultureInfo.InvariantCulture)}";
+        Assert.Equal($"+ Rung 2 ({latest})", drawn.Label);
         Assert.Equal("Added", drawn.Change);
-        Assert.Contains(change.Lines, l => l.IsDrawn && l.Kind == DiffLineKind.Removed && l.Label == "- Rung 2 before");
+        Assert.Contains(change.Lines, l => l.IsDrawn && l.Kind == DiffLineKind.Removed && l.Label == $"- Rung 2 ({previous})");
+        Assert.Equal($"Revision {previous}", history.Sides.Before);
+        Assert.Equal($"Revision {latest}", history.Sides.After);
+
+        // Side by side by default: the old rung and the new one on one row.
+        Assert.True(history.SideBySide);
+        DiffRowViewModel row = Assert.Single(change.Rows, r => r.IsPair && r.Left!.Kind == DiffLineKind.Removed);
+        Assert.Equal(DiffLineKind.Added, row.Right!.Kind);
+        Assert.Equal("XIC(Line_Running)XIC(E_Stop_OK)OTE(Conveyor_Run);", row.Right.Rung);
+        Assert.All(change.Rows.Where(r => r.IsPair && r.Left!.Kind == DiffLineKind.Context && r.Left.IsRung), r => Assert.Equal(r.Left!.Rung, r.Right!.Rung));
         Assert.All(change.Lines.Where(l => l.Kind == DiffLineKind.Heading), l => Assert.False(l.IsDrawn));
         history.ShowText = true;
         Assert.DoesNotContain(Assert.Single(history.Changes).Lines, l => l.IsDrawn);
@@ -174,6 +185,8 @@ public class RevisionWorkflowTests
         // Against the project: the same routine, one rung changed.
         history.Mode = HistoryMode.Project;
         Assert.Equal("1 rung changed", Assert.Single(history.Changes).Summary);
+        Assert.Equal("Drafts", history.Sides.After);
+        Assert.StartsWith("Project - ", history.Sides.Before, StringComparison.Ordinal);
 
         // Pick the revision before the edit and go back to it from the view.
         history.SelectedRevision = history.Revisions[1];

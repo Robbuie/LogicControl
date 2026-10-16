@@ -1847,6 +1847,56 @@
     </Style.Triggers>
   </Style>
 
+  <!-- A pane's heading in a two-pane comparison: what that side is. The bottom edge is the colour
+       that side's own lines take - red for the older side, green for the newer - set by the view. -->
+  <Style x:Key="DiffPaneHead" TargetType="Border">
+    <Setter Property="Background" Value="{DynamicResource bg-3}" />
+    <Setter Property="BorderThickness" Value="0,0,0,2" />
+    <Setter Property="CornerRadius" Value="4,4,0,0" />
+    <Setter Property="Padding" Value="8,4" />
+  </Style>
+
+  <!-- One side of a two-pane row, tinted by what happened to it. -->
+  <Style x:Key="DiffCell" TargetType="Border">
+    <Setter Property="Background" Value="Transparent" />
+    <Setter Property="BorderBrush" Value="{DynamicResource line-soft}" />
+    <Setter Property="BorderThickness" Value="0,0,0,1" />
+    <Setter Property="Padding" Value="0,4" />
+    <Style.Triggers>
+      <DataTrigger Binding="{Binding Kind}" Value="Added">
+        <Setter Property="Background" Value="{DynamicResource row-good}" />
+      </DataTrigger>
+      <DataTrigger Binding="{Binding Kind}" Value="Removed">
+        <Setter Property="Background" Value="{DynamicResource row-bad}" />
+      </DataTrigger>
+      <DataTrigger Binding="{Binding Kind}" Value="Changed">
+        <Setter Property="Background" Value="{DynamicResource row-warn}" />
+      </DataTrigger>
+    </Style.Triggers>
+  </Style>
+
+  <!-- Text on one side of a two-pane row. Like DiffLineText, without the strike-through: the pane
+       it is in already says which side it belongs to. -->
+  <Style x:Key="DiffCellText" TargetType="TextBlock" BasedOn="{StaticResource MonoText}">
+    <Setter Property="Foreground" Value="{DynamicResource txt-1}" />
+    <Setter Property="TextWrapping" Value="Wrap" />
+    <Setter Property="Padding" Value="2,1,6,1" />
+    <Style.Triggers>
+      <DataTrigger Binding="{Binding Kind}" Value="Added">
+        <Setter Property="Foreground" Value="{DynamicResource good}" />
+      </DataTrigger>
+      <DataTrigger Binding="{Binding Kind}" Value="Removed">
+        <Setter Property="Foreground" Value="{DynamicResource bad}" />
+      </DataTrigger>
+      <DataTrigger Binding="{Binding Kind}" Value="Changed">
+        <Setter Property="Foreground" Value="{DynamicResource warn}" />
+      </DataTrigger>
+      <DataTrigger Binding="{Binding Kind}" Value="Context">
+        <Setter Property="Foreground" Value="{DynamicResource txt-2}" />
+      </DataTrigger>
+    </Style.Triggers>
+  </Style>
+
   <!-- The system view's drawing. Like LadderRung: OnRender cannot hold a DynamicResource, so the
        colours arrive as properties bound here. -->
   <Style x:Key="Topology" TargetType="views:TopologyView">

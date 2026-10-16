@@ -41,6 +41,27 @@ public sealed record DiffLine(DiffLineKind Kind, string Text)
     public string? RungComment { get; init; }
 
     public bool IsRung => Rung is not null;
+
+    /// <summary>
+    /// One half of an edited rung: the removed (older) line is followed straight away by the added
+    /// (newer) one, both marked. A two-pane view puts them side by side on one row.
+    /// </summary>
+    public bool IsEdit { get; init; }
+
+    /// <summary>For an unchanged context rung: its label in the older version, which can differ.</summary>
+    public string? BeforeRungLabel { get; init; }
+
+    /// <summary>For an unchanged context rung: its comment in the older version.</summary>
+    public string? BeforeRungComment { get; init; }
+
+    /// <summary>
+    /// For a <see cref="DiffLineKind.Changed"/> line: what the older and newer versions say, so a
+    /// two-pane view can show each on its own side. Null when the line cannot be split.
+    /// </summary>
+    public string? BeforeText { get; init; }
+
+    /// <inheritdoc cref="BeforeText"/>
+    public string? AfterText { get; init; }
 }
 
 /// <summary>

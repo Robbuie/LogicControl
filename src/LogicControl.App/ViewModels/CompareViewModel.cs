@@ -24,6 +24,7 @@ public sealed class CompareViewModel : ObservableObject
     private bool _swapped;
     private string _scope = ProjectComparison.All;
     private bool _showLadder = true;
+    private bool _sideBySide = true;
     private IReadOnlyList<ItemChangeViewModel> _changes = [];
     private ItemChangeViewModel? _selected;
     private string? _error;
@@ -69,10 +70,46 @@ public sealed class CompareViewModel : ObservableObject
 
     public string ThisName => _main.Analysis is { } a ? $"{a.Project.Controller.Name} ({Path.GetFileName(a.Project.SourcePath)})" : "(no project open)";
 
-    /// <summary>"Open project → other export", or the reverse: how the lines read.</summary>
+    /// <summary>Which export is on which side, and what the colours mean.</summary>
     public string Direction => _swapped
-        ? $"Read as {OtherName} → {ThisName}: green is only in the open project."
-        : $"Read as {ThisName} → {OtherName}: green is only in the other export.";
+        ? "Left: the other export. Right: the open project. Green is only in the open project, red only in the other export."
+        : "Left: the open project. Right: the other export. Green is only in the other export, red only in the open project.";
+
+    /// <summary>
+    /// The two sides by name: the left pane is the starting point (the open project, unless the
+    /// direction is swapped), the right pane what it is compared with.
+    /// </summary>
+    public DiffSides Sides
+    {
+        get
+        {
+            string mine = $"Open project - {ThisName}";
+            string theirs = $"Other export - {(_other is null ? "(none)" : OtherName)}";
+            return _swapped
+                ? new DiffSides(theirs, mine, "other export", "open project")
+                : new DiffSides(mine, theirs, "open project", "other export");
+        }
+    }
+
+    /// <summary>Two panes, one export on each side (the default), or one list read top to bottom.</summary>
+    public bool SideBySide
+    {
+        get => _sideBySide;
+        set
+        {
+            if (SetProperty(ref _sideBySide, value))
+            {
+                OnPropertyChanged(nameof(Stacked));
+                Refresh();
+            }
+        }
+    }
+
+    public bool Stacked
+    {
+        get => !_sideBySide;
+        set => SideBySide = !value;
+    }
 
     /// <summary>Read the other export as the starting point instead.</summary>
     public bool Swapped
@@ -83,6 +120,7 @@ public sealed class CompareViewModel : ObservableObject
             if (SetProperty(ref _swapped, value))
             {
                 OnPropertyChanged(nameof(Direction));
+                OnPropertyChanged(nameof(Sides));
                 Refresh();
             }
         }
@@ -299,6 +337,7 @@ public sealed class CompareViewModel : ObservableObject
         OnPropertyChanged(nameof(ThisName));
         OnPropertyChanged(nameof(ThisRoutines));
         OnPropertyChanged(nameof(Direction));
+        OnPropertyChanged(nameof(Sides));
 
         if (_other is null || _main.Analysis is null)
         {
@@ -314,7 +353,8 @@ public sealed class CompareViewModel : ObservableObject
                 ? ProjectComparison.Compare(_other.Project, _main.Analysis.Project, _scope)
                 : ProjectComparison.Compare(_main.Analysis.Project, _other.Project, _scope)).Items;
 
-        Changes = items.Select(i => new ItemChangeViewModel(i, canOpen: false, _showLadder, _main.Develop.Shapes)).ToList();
+        DiffSides sides = Sides;
+        Changes = items.Select(i => new ItemChangeViewModel(i, canOpen: false, _showLadder, _main.Develop.Shapes, sides, _sideBySide)).ToList();
         SelectedChange = _changes.FirstOrDefault(c => c.Title == keep) ?? _changes.FirstOrDefault();
         OnPropertyChanged(nameof(Summary));
         RaiseCommands();

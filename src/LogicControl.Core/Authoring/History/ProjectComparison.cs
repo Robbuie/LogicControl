@@ -89,7 +89,11 @@ public static class ProjectComparison
 
         if (!string.Equals(before.Description, after.Description, StringComparison.Ordinal))
         {
-            lines.Insert(0, new DiffLine(DiffLineKind.Changed, $"~ Description: {before.Description ?? "(none)"} → {after.Description ?? "(none)"}"));
+            lines.Insert(0, new DiffLine(DiffLineKind.Changed, $"~ Description: {before.Description ?? "(none)"} → {after.Description ?? "(none)"}")
+            {
+                BeforeText = $"Description: {before.Description ?? "(none)"}",
+                AfterText = $"Description: {after.Description ?? "(none)"}",
+            });
         }
 
         return new ItemChange("Routine", name, lines.Count == 0 ? ItemChangeKind.Changed : ItemChangeKind.Changed, lines)
@@ -196,7 +200,11 @@ public static class ProjectComparison
                     lines.Add(new DiffLine(DiffLineKind.Removed, $"- {N(s.Before)}: {before[s.Before]}"));
                     break;
                 default:
-                    lines.Add(new DiffLine(DiffLineKind.Context, $"  {N(s.After)}: {after[s.After]}"));
+                    lines.Add(new DiffLine(DiffLineKind.Context, $"  {N(s.After)}: {after[s.After]}")
+                    {
+                        BeforeText = $"{N(s.Before)}: {before[s.Before]}",
+                        AfterText = $"{N(s.After)}: {after[s.After]}",
+                    });
                     break;
             }
         }
@@ -307,7 +315,7 @@ public static class ProjectComparison
 
                 lines.Add(x is null ? new DiffLine(DiffLineKind.Added, $"+ {now[i].Label}: {y}")
                     : y is null ? new DiffLine(DiffLineKind.Removed, $"- {now[i].Label}: {x}")
-                    : new DiffLine(DiffLineKind.Changed, $"~ {now[i].Label}: {x} → {y}"));
+                    : new DiffLine(DiffLineKind.Changed, $"~ {now[i].Label}: {x} → {y}") { BeforeText = $"{old[i].Label}: {x}", AfterText = $"{now[i].Label}: {y}" });
             }
 
             if (lines.Count > 0)
