@@ -43,7 +43,8 @@ src/LogicControl.Core/        engine - MUST NOT reference any UI assembly
     Authoring/                drafts, DraftChecker, L5xWriter (import files), ProjectMerger
                               (write into a whole-project copy), LogicTemplates, DeclarationText,
                               DraftsFromProject (project -> drafts, the "before" of a comparison)
-    Authoring/History/        RevisionHistory (snapshots in the .lcdev), SetDiff, LineDiff,
+    Authoring/History/        RevisionHistory (snapshots in the .lcdev), RevisionStore (the
+                              snapshots' shared pieces), SetDiff, LineDiff,
                               RungComparison, ProjectComparison (two exports - the Compare tab and
                               Claude's compare_* tools)
     Analysis/                 cross-reference, hardware tree, comms map, findings, ProjectAnalysis,
@@ -91,7 +92,9 @@ installer/                    Inno Setup script; tools/publish.ps1 builds exe + 
   revert, Claude's tools) calls `CommitPending()` *before* it changes the set and `Commit(label)`
   after; typing calls `Changed()`, which batches per draft and per minute. Get the order wrong and
   a revision is labelled with the wrong step. Reverting records a new revision - history is never
-  rewritten. Plant-level findings are LC-PLT-*, planted in RobotCell.L5X and marked PLANT.
+  rewritten. A set handed a history (revert, clear) takes `HistoryStore` along with `History`:
+  revisions are pieces in that store, not whole snapshots (RevisionStore). Plant-level findings
+  are LC-PLT-*, planted in RobotCell.L5X and marked PLANT.
 - **Generic Ethernet module L5X is unverified** (ModuleFormats: CommMethod numbers, sizes in
   bytes). The first real import of a merged project with a module confirms or corrects it.
 - **The assistant can only change drafts.** LogicTools has no tool that touches a controller,

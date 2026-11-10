@@ -188,6 +188,140 @@ public class HistoryTests
         Assert.Equal(RevisionHistory.Limit + 5, history.Latest!.Number);
     }
 
+    private static RoutineDraft BigRoutine(int rungs) => new()
+    {
+        Name = "Big",
+        Program = "MainProgram",
+        Rungs = Enumerable.Range(0, rungs)
+            .Select(i => new RungDraft($"XIC(Start_{i})XIO(Stop_{i})[OTE(Motor_{i}.Run),TON(Timer_{i},?,?)];", $"Motor {i}"))
+            .ToList(),
+    };
+
+    /// <summary>Makes a change, records it, and says how many pieces and characters it added to the store.</summary>
+    private static (int Pieces, long Size) Added(RevisionHistory history, Action change, DevelopmentSet set, string label)
+    {
+        int pieces = history.Store.Pieces.Count;
+        long size = history.Store.Size;
+        change();
+        Assert.NotNull(history.Record(set, label, now: T0));
+        return (history.Store.Pieces.Count - pieces, history.Store.Size - size);
+    }
+
+    [Fact]
+    public void EditingOneRungOfABigRoutineStoresAChunkNotTheRoutine()
+    {
+        var set = new DevelopmentSet { Routines = [BigRoutine(2000)] };
+        var history = new RevisionHistory(set);
+        history.Record(set, "started", now: T0);
+        long whole = set.ToSnapshot().Length;
+
+        // A copy of the routine would be the whole snapshot again. A revision is the chunk the rung
+        // is in (at most RevisionStore.ChunkMax rungs), the routine's list of chunks and the top -
+        // and an insert can split a chunk in two.
+        var edited = Added(history, () => set.Routines[0].Rungs[1234].Text = "XIC(Changed)OTE(Out);", set, "one rung");
+        var inserted = Added(history, () => set.Routines[0].Rungs.Insert(700, new RungDraft("NOP();")), set, "a rung inserted");
+
+        Assert.Equal(3, edited.Pieces);
+        Assert.InRange(inserted.Pieces, 3, 4);
+        Assert.True(edited.Size < whole / 10, $"one rung changed stored {edited.Size} of {whole}");
+        Assert.True(inserted.Size < whole / 10, $"one rung inserted stored {inserted.Size} of {whole}");
+
+        DevelopmentSet first = RevisionHistory.Restore(history.Find(1)!);
+        Assert.Equal(2000, first.Routines[0].Rungs.Count);
+        Assert.Equal("XIC(Start_1234)XIO(Stop_1234)[OTE(Motor_1234.Run),TON(Timer_1234,?,?)];", first.Routines[0].Rungs[1234].Text);
+        Assert.Equal(set.ToSnapshot(), RevisionHistory.Restore(history.Latest!).ToSnapshot());
+        Assert.Equal("Routine MainProgram/Big: 1 rung added", history.Latest!.Summary);
+    }
+
+    [Fact]
+    public void ARevisionGivesBackExactlyWhatWasRecorded()
+    {
+        var set = new DevelopmentSet
+        {
+            ControllerName = "Line3",
+            SoftwareRevision = "35.01",
+            DataTypes = [new UdtDraft { Name = "Motor", Description = "Speed < 100 & \"quoted\" - Ü", Members = [.. Enumerable.Range(0, 80).Select(i => new MemberDraft { Name = $"M{i}", Dimension = i % 3 })] }],
+            AddOnInstructions = [new AoiDraft { Name = "Valve", Logic = [new RungDraft("XIC(Open)OTE(Out);")] }],
+            Tags = [.. Enumerable.Range(0, 150).Select(i => new TagDraft($"T{i}", i % 2 == 0 ? "DINT" : "BOOL"))],
+            Programs = [new ProgramDraft { Name = "Conveyors" }],
+            Routines = [Motors("XIC(A)OTE(B);"), BigRoutine(300)],
+            Modules = [new ModuleDraft { Name = "Drive1", IpAddress = "192.168.1.20" }],
+        };
+        var history = new RevisionHistory(set);
+        history.Record(set, "everything", now: T0);
+
+        Assert.Equal(set.ToSnapshot(), RevisionHistory.Restore(history.Latest!).ToSnapshot());
+
+        DevelopmentSet reopened = DevelopmentSet.FromJson(set.ToJson());
+        Assert.Equal(set.ToSnapshot(), RevisionHistory.Restore(new RevisionHistory(reopened).Latest!).ToSnapshot());
+    }
+
+    [Fact]
+    public void TheSavedHistoryKeepsItsPiecesAndSharesThemAfterReopening()
+    {
+        var set = new DevelopmentSet { Routines = [BigRoutine(500)] };
+        var history = new RevisionHistory(set);
+        history.Record(set, "one", now: T0);
+        set.Routines[0].Rungs[10].Comment = "changed";
+        history.Record(set, "two", now: T0);
+
+        string json = set.ToJson();
+        Assert.Contains("\"historyStore\"", json, StringComparison.Ordinal);
+        Assert.Contains("\"$chunks\"", json, StringComparison.Ordinal);
+        Assert.DoesNotContain("\"snapshot\"", json, StringComparison.Ordinal);
+
+        DevelopmentSet reopened = DevelopmentSet.FromJson(json);
+        var again = new RevisionHistory(reopened);
+        Assert.Equal("changed", RevisionHistory.Restore(again.Find(2)!).Routines[0].Rungs[10].Comment);
+        Assert.Equal("Motor 10", RevisionHistory.Restore(again.Find(1)!).Routines[0].Rungs[10].Comment);
+
+        // The pieces read back are the pieces a new revision is cut into: an edit after reopening
+        // still stores a chunk, not the routine.
+        Assert.Equal(3, Added(again, () => reopened.Routines[0].Rungs[400].Text = "NOP();", reopened, "three").Pieces);
+    }
+
+    [Fact]
+    public void AFileSavedBeforeTheStoreOpensAndIsMovedIntoIt()
+    {
+        // Before 0.5.6 a revision held its whole snapshot as text.
+        var one = new DevelopmentSet { Routines = [Motors("XIC(A)OTE(B);")] };
+        var two = new DevelopmentSet { Routines = [Motors("XIC(A)OTE(B);", "NOP();")] };
+        two.History =
+        [
+            new RevisionRecord { Number = 1, TimeUtc = T0, Label = "one", Snapshot = one.ToSnapshot() },
+            new RevisionRecord { Number = 2, TimeUtc = T0, Label = "two", Snapshot = two.ToSnapshot(), Summary = "Routine MainProgram/Motors: 1 rung added" },
+        ];
+        string old = two.ToJson();
+        Assert.Contains("\"snapshot\"", old, StringComparison.Ordinal);
+
+        DevelopmentSet reopened = DevelopmentSet.FromJson(old);
+        var history = new RevisionHistory(reopened);
+
+        Assert.All(history.Revisions, r => Assert.Null(r.Snapshot));
+        Assert.All(history.Revisions, r => Assert.NotNull(r.Root));
+        Assert.Single(RevisionHistory.Restore(history.Find(1)!).Routines[0].Rungs);
+        Assert.Equal(2, RevisionHistory.Restore(history.Find(2)!).Routines[0].Rungs.Count);
+        Assert.Null(history.Record(reopened, "unchanged", now: T0));
+        Assert.DoesNotContain("\"snapshot\"", reopened.ToJson(), StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void PiecesOnlyDroppedRevisionsUsedAreClearedOut()
+    {
+        var set = new DevelopmentSet();
+        var history = new RevisionHistory(set);
+        for (int i = 0; i < RevisionHistory.Limit + RevisionHistory.PruneEvery; i++)
+        {
+            set.Tags = [new TagDraft($"T{i}", "DINT", $"tag {i} {new string('x', RevisionStore.InlineLimit)}")];
+            history.Record(set, $"step {i}", now: T0);
+        }
+
+        // Cleared out on the last step: nothing left unused, and every kept revision still opens.
+        Assert.Equal(0, history.Prune());
+        Assert.True(history.Store.Pieces.Count <= 2 * RevisionHistory.Limit);
+        Assert.Equal($"T{RevisionHistory.PruneEvery}", RevisionHistory.Restore(history.Revisions[0]).Tags.Single().Name);
+    }
+
     [Fact]
     public void ComparingWithTheProjectShowsWhatAnEditChanges()
     {

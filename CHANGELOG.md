@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.5.6 - history without the copies
+
+- **Editing a big routine no longer fills memory.** Every revision in a development set's
+  history held a full copy of every draft, so editing a 2,000-rung routine in place kept a copy of
+  the whole routine per step: 300 steps took about 200 MB of memory and a 130 MB .lcdev file.
+  Revisions are now cut into pieces stored once and shared between them - a step that changes one
+  rung stores the chunk of rungs around it. The same 300 steps take about 9 MB and a 2.6 MB file,
+  and opening the file and going back to any step is faster. Every revision is still the whole
+  set, so going back to any step works exactly as before.
+- **Older .lcdev files open as they did** and are moved to the new form when opened; saving
+  writes them back smaller. A file saved by 0.5.6 opens in an older version with its drafts but
+  not its history.
+
 ## 0.5.5 - rungs hold the right rail
 
 - **Outputs stay in view while you scroll a routine.** The Logic tab's ladder scrolled sideways as

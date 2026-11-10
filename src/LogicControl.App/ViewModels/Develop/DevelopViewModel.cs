@@ -147,6 +147,7 @@ public sealed class DevelopViewModel : ObservableObject
 
         DevelopmentSet restored = RevisionHistory.Restore(revision);
         restored.History = _set.History;
+        restored.HistoryStore = _set.HistoryStore;
         _set = restored;
         _history = new RevisionHistory(_set);
 
@@ -853,7 +854,7 @@ public sealed class DevelopViewModel : ObservableObject
     private void Clear()
     {
         CommitPending();
-        _set = new DevelopmentSet { ControllerName = _set.ControllerName, SoftwareRevision = _set.SoftwareRevision, History = _set.History };
+        _set = new DevelopmentSet { ControllerName = _set.ControllerName, SoftwareRevision = _set.SoftwareRevision, History = _set.History, HistoryStore = _set.HistoryStore };
         _history = new RevisionHistory(_set);
         SelectedItem = null;
         Rebuild(null);

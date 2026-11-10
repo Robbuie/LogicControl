@@ -50,6 +50,13 @@ public sealed class DevelopmentSet
     /// </summary>
     public List<History.RevisionRecord>? History { get; set; }
 
+    /// <summary>
+    /// The pieces the <see cref="History"/>'s revisions are made of - see
+    /// <see cref="History.RevisionStore"/>. Saved beside the history; never part of a snapshot.
+    /// </summary>
+    [JsonConverter(typeof(History.RevisionPiecesConverter))]
+    public Dictionary<string, string>? HistoryStore { get; set; }
+
     [JsonIgnore]
     public bool IsEmpty =>
         DataTypes.Count == 0 && AddOnInstructions.Count == 0 && Tags.Count == 0 && Programs.Count == 0 && Routines.Count == 0
