@@ -710,7 +710,7 @@ public static class L5xWriter
 
                 for (int i = 0; i < instruction.Operands.Count; i++)
                 {
-                    if (InstructionCatalog.RoleOf(instruction.Mnemonic, i) == OperandRole.NotATag)
+                    if (InstructionCatalog.RoleOf(instruction, i) == OperandRole.NotATag)
                     {
                         continue;
                     }

@@ -52,6 +52,12 @@ public static class InstructionCatalog
         "JSR", "JMP", "LBL", "SFR", "SFP", "FOR",
     };
 
+    /// <summary>Instructions whose every operand is written: an SBR receives the JSR's inputs into its parameters.</summary>
+    private static readonly HashSet<string> WritesAll = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "SBR",
+    };
+
     /// <summary>Instructions with no tag operands at all.</summary>
     private static readonly HashSet<string> NoTags = new(StringComparer.OrdinalIgnoreCase)
     {
@@ -65,6 +71,47 @@ public static class InstructionCatalog
     /// Whether operand <paramref name="index"/> of <paramref name="mnemonic"/> is a tag reference
     /// at all, and whether it is written.
     /// </summary>
+    /// <summary>
+    /// What <paramref name="instruction"/> does with operand <paramref name="index"/>, for the
+    /// instructions where that depends on the other operands: a JSR's input count says where its
+    /// inputs (read) end and its return parameters (written) begin; an SBR writes every parameter
+    /// it receives into; a RET reads every value it hands back.
+    /// </summary>
+    public static OperandRole RoleOf(Instruction instruction, int index)
+    {
+        ArgumentNullException.ThrowIfNull(instruction);
+        string mnemonic = instruction.Mnemonic;
+
+        if (mnemonic.Equals("JSR", StringComparison.OrdinalIgnoreCase))
+        {
+            // JSR(Routine, InputCount, In1..InN, Ret1..RetM). A count that is not a number (still
+            // '?') says nothing about where the returns start, so everything after it is read.
+            if (index <= 1)
+            {
+                return OperandRole.NotATag;
+            }
+
+            return JsrInputCount(instruction) is int inputs && index >= 2 + inputs ? OperandRole.Write : OperandRole.Read;
+        }
+
+        if (mnemonic.Equals("SBR", StringComparison.OrdinalIgnoreCase))
+        {
+            return OperandRole.Write;
+        }
+
+        return RoleOf(mnemonic, index);
+    }
+
+    /// <summary>A JSR's input count - its second operand - when it is a number.</summary>
+    public static int? JsrInputCount(Instruction instruction)
+    {
+        ArgumentNullException.ThrowIfNull(instruction);
+        return instruction.Operands.Count > 1
+            && int.TryParse(instruction.Operands[1], System.Globalization.NumberStyles.None, System.Globalization.CultureInfo.InvariantCulture, out int n)
+            ? n
+            : null;
+    }
+
     public static OperandRole RoleOf(string mnemonic, int index)
     {
         if (NoTags.Contains(mnemonic))
@@ -84,6 +131,11 @@ public static class InstructionCatalog
             return OperandRole.NotATag;
         }
 
+        if (WritesAll.Contains(mnemonic))
+        {
+            return OperandRole.Write;
+        }
+
         return Writes.TryGetValue(mnemonic, out int[]? written) && written.Contains(index)
             ? OperandRole.Write
             : OperandRole.Read;
@@ -91,14 +143,14 @@ public static class InstructionCatalog
 
     /// <summary>True when the instruction is part of the built-in set this table knows.</summary>
     public static bool IsKnown(string mnemonic) =>
-        Writes.ContainsKey(mnemonic) || FirstOperandIsName.Contains(mnemonic) || NoTags.Contains(mnemonic)
+        Writes.ContainsKey(mnemonic) || WritesAll.Contains(mnemonic) || FirstOperandIsName.Contains(mnemonic) || NoTags.Contains(mnemonic)
         || SystemValue.Contains(mnemonic) || ReadOnly.Contains(mnemonic);
 
     /// <summary>Built-in instructions that only read - listed so an AOI with the same name is not assumed.</summary>
     private static readonly HashSet<string> ReadOnly = new(StringComparer.OrdinalIgnoreCase)
     {
         "XIC", "XIO", "EQU", "NEQ", "GRT", "GEQ", "LES", "LEQ", "LIM", "MEQ", "CMP", "IOT",
-        "RET", "SBR", "SSV", "JXR", "TRG",
+        "RET", "SSV", "JXR", "TRG",
     };
 
     /// <summary>Destructive outputs: two of these on the same bit is the classic double coil.</summary>

@@ -216,6 +216,38 @@ public class AuthoringTests
     }
 
     [Fact]
+    public void SubroutinesTakeAnyNumberOfParameters()
+    {
+        var set = new DevelopmentSet
+        {
+            Programs = [new ProgramDraft { Name = "MainProgram" }],
+            Tags =
+            [
+                new TagDraft("Level", "REAL"), new TagDraft("Setpoint", "REAL"), new TagDraft("Valve_Open", "BOOL"),
+                new TagDraft("Fill_Done", "BOOL"), new TagDraft("Fill_Level", "REAL"), new TagDraft("Fill_Setpoint", "REAL"),
+                new TagDraft("Fill_Open", "BOOL"), new TagDraft("Fill_Finished", "BOOL"),
+            ],
+            Routines =
+            [
+                new RoutineDraft { Name = "MainRoutine", Rungs = [new("JSR(Fill,2,Level,Setpoint,Valve_Open,Fill_Done);"), new("JSR(Fill,0);")] },
+                new RoutineDraft
+                {
+                    Name = "Fill",
+                    Rungs = [new("SBR(Fill_Level,Fill_Setpoint);"), new("GRT(Fill_Level,Fill_Setpoint)OTE(Fill_Open);"), new("RET(Fill_Open,Fill_Finished);"), new("RET();"), new("SBR();")],
+                },
+            ],
+        };
+
+        Assert.Empty(DraftChecker.Check(set));
+
+        // Fewer parameters than the count says is worth a look - it is not refused here.
+        set.Routines[0].Rungs.Add(new("JSR(Fill,3,Level);"));
+        DraftIssue issue = Assert.Single(DraftChecker.Check(set));
+        Assert.False(issue.IsError);
+        Assert.Contains("passes 3 inputs but has 1 parameter", issue.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void ARungCanSeeTheOpenProjectsTagsAndAois()
     {
         var set = new DevelopmentSet

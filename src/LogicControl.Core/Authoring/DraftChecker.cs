@@ -131,6 +131,12 @@ public static partial class DraftChecker
                     issues.Add(DraftIssue.Error(subject,
                         $"{at} takes {expected} operand{(shape.MinOperands == 1 ? string.Empty : "s")} ({string.Join(", ", shape.OperandNames)}); it has {count}."));
                 }
+                else if (string.Equals(instruction.Mnemonic, "JSR", StringComparison.OrdinalIgnoreCase)
+                    && InstructionCatalog.JsrInputCount(instruction) is int inputs && count - 2 < inputs)
+                {
+                    issues.Add(DraftIssue.Warning(subject,
+                        $"{at} says it passes {inputs} input{(inputs == 1 ? string.Empty : "s")} but has {count - 2} parameter{(count - 2 == 1 ? string.Empty : "s")} after the count."));
+                }
             }
 
             for (int i = 0; i < instruction.Operands.Count; i++)
@@ -157,7 +163,7 @@ public static partial class DraftChecker
                     continue;
                 }
 
-                OperandRole role = InstructionCatalog.RoleOf(instruction.Mnemonic, i);
+                OperandRole role = InstructionCatalog.RoleOf(instruction, i);
 
                 if (string.Equals(instruction.Mnemonic, "JSR", StringComparison.OrdinalIgnoreCase) && i == 0)
                 {

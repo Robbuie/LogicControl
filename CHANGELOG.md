@@ -9,6 +9,11 @@
   rung stores the chunk of rungs around it. The same 300 steps take about 9 MB and a 2.6 MB file,
   and opening the file and going back to any step is faster. Every revision is still the whole
   set, so going back to any step works exactly as before.
+- **Subroutines with parameters check clean.** An SBR or RET with any parameters was refused as
+  "takes 0 operands", and every JSR parameter was counted as read. A JSR's inputs now read, its
+  return parameters (after the input count) write, an SBR writes what it receives and a RET reads
+  what it hands back - in the checker, the cross-reference and the findings. A JSR with fewer
+  parameters than its input count says is a warning.
 - **Older .lcdev files open as they did** and are moved to the new form when opened; saving
   writes them back smaller. A file saved by 0.5.6 opens in an older version with its drafts but
   not its history.

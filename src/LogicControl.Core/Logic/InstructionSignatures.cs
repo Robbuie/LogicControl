@@ -94,8 +94,6 @@ public static class InstructionSignatures
         // Program control
         Add("JMP", LadderSymbol.OutputBox, "Program Control", "Jump to label", "Label Name");
         Add("LBL", LadderSymbol.Contact, "Program Control", "Label", "Label Name");
-        Add("RET", LadderSymbol.OutputBox, "Program Control", "Return from subroutine");
-        Add("SBR", LadderSymbol.InputBox, "Program Control", "Subroutine parameters");
         Add("TND", LadderSymbol.OutputBox, "Program Control", "Temporary end");
         Add("MCR", LadderSymbol.OutputBox, "Program Control", "Master control reset");
         Add("AFI", LadderSymbol.Contact, "Program Control", "Always false - disables the rung");
@@ -107,6 +105,12 @@ public static class InstructionSignatures
         // JSR takes a routine name, an input count and that many parameters: shape is variable.
         t["JSR"] = new InstructionShape("JSR", LadderSymbol.OutputBox, "Program Control", "Jump to subroutine",
             ["Routine Name", "Input Par"], VariableTail: "Par");
+
+        // SBR receives a JSR's inputs and RET hands back its return values: none, one or many.
+        t["SBR"] = new InstructionShape("SBR", LadderSymbol.InputBox, "Program Control", "Subroutine parameters",
+            [], VariableTail: "Input Par");
+        t["RET"] = new InstructionShape("RET", LadderSymbol.OutputBox, "Program Control", "Return from subroutine",
+            [], VariableTail: "Return Par");
 
         // Shift and file
         Add("BSL", LadderSymbol.OutputBox, "File/Shift", "Bit shift left", "Array", "Control", "Source Bit", "Length");

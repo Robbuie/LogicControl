@@ -119,7 +119,7 @@ public sealed partial class CrossReference
             string operand = instruction.Operands[i];
             OperandRole role = isAoiCall && called is not null
                 ? AoiOperandRole(called, i)
-                : InstructionCatalog.RoleOf(instruction.Mnemonic, i);
+                : InstructionCatalog.RoleOf(instruction, i);
 
             if (role == OperandRole.NotATag)
             {

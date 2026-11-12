@@ -38,4 +38,24 @@ public class TagReferenceTests
     [InlineData("SomethingUnknown", 0, OperandRole.Read)]
     public void KnowsWhichOperandsAreWritten(string mnemonic, int index, OperandRole expected) =>
         Assert.Equal(expected, InstructionCatalog.RoleOf(mnemonic, index));
+
+    [Fact]
+    public void SubroutineParametersAreReadAndWrittenTheWayTheyMove()
+    {
+        // JSR(Routine, InputCount, inputs..., returns...): inputs are read, returns are written.
+        Instruction jsr = RungParser.Parse("JSR(Fill,2,Level,Setpoint,Valve_Open,Fill_Done);").Single();
+        Assert.Equal(
+            [OperandRole.NotATag, OperandRole.NotATag, OperandRole.Read, OperandRole.Read, OperandRole.Write, OperandRole.Write],
+            Enumerable.Range(0, jsr.Operands.Count).Select(i => InstructionCatalog.RoleOf(jsr, i)));
+
+        // SBR receives into its parameters; RET hands its values back.
+        Instruction sbr = RungParser.Parse("SBR(Fill_Level,Fill_Setpoint);").Single();
+        Instruction ret = RungParser.Parse("RET(Fill_Open,Fill_Finished);").Single();
+        Assert.All([0, 1], i => Assert.Equal(OperandRole.Write, InstructionCatalog.RoleOf(sbr, i)));
+        Assert.All([0, 1], i => Assert.Equal(OperandRole.Read, InstructionCatalog.RoleOf(ret, i)));
+
+        // A count still '?' says nothing about where the returns start: read, never a guessed write.
+        Instruction unknown = RungParser.Parse("JSR(Fill,?,Level,Valve_Open);").Single();
+        Assert.Equal(OperandRole.Read, InstructionCatalog.RoleOf(unknown, 3));
+    }
 }
