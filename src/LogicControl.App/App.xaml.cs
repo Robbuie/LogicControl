@@ -82,7 +82,8 @@ public partial class App : Application
                 SelfExecutable = BuildInfo.ExecutablePath,
                 ConfiguredPath = preferences.ClaudeCodePath,
             },
-            recent: new RecentFiles(RecentFiles.DefaultPath));
+            recent: new RecentFiles(RecentFiles.DefaultPath),
+            accepted: new AcceptedFindings(AcceptedFindings.DefaultPath));
         viewModel.Assistant.ClaudeCodePathChanged += (_, _) =>
         {
             preferences.ClaudeCodePath = viewModel.Assistant.ClaudeCodeConfiguredPath;

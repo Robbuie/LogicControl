@@ -1,7 +1,17 @@
 # Changelog
 
-## 0.5.6 - lighter on memory
+## 0.6.0 - search, CSV and accepted findings; lighter on memory
 
+- **Search all logic** (View > Search all logic, Ctrl+Shift+F): text or a tag name in every rung,
+  rung comment and line of structured text. *Whole tag name* finds `Motor` and `Motor.Run` but
+  not `Motor2`. Double-click a place to open its rung. Ctrl+Shift+F on the Tags tab searches for
+  the selected tag.
+- **File > Export as CSV**: findings, tags, the tag cross-reference (every use of every tag, one
+  row each), hardware and communications - what the tab shows, with the filter applied - as UTF-8
+  CSV that Excel opens cleanly. A cell Excel would run as a formula is written as text.
+- **Accept a finding** that is known and fine: it leaves the Findings list for that controller,
+  in this export and the next, so a new one stands out. *Show accepted* brings them back, faded.
+  Kept in %LOCALAPPDATA%\LogicControl\accepted.json.
 - **Editing a big routine no longer fills memory.** Every revision in a development set's
   history held a full copy of every draft, so editing a 2,000-rung routine in place kept a copy of
   the whole routine per step: 300 steps took about 200 MB of memory and a 130 MB .lcdev file.

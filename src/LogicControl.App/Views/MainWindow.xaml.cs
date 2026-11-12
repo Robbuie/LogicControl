@@ -38,6 +38,7 @@ public partial class MainWindow : Window
         InputBindings.Add(new KeyBinding(new RelayKey(() => OnOpen(this, new RoutedEventArgs())), Key.O, ModifierKeys.Control));
         InputBindings.Add(new KeyBinding(new RelayKey(() => ViewModel?.ReloadCommand.Execute(null)), Key.F5, ModifierKeys.None));
         InputBindings.Add(new KeyBinding(new RelayKey(FocusSearch), Key.F, ModifierKeys.Control));
+        InputBindings.Add(new KeyBinding(new RelayKey(ShowLogicSearch), Key.F, ModifierKeys.Control | ModifierKeys.Shift));
         InputBindings.Add(new KeyBinding(new RelayKey(ClearSearch), Key.Escape, ModifierKeys.None));
         InputBindings.Add(new KeyBinding(new RelayKey(() =>
         {
@@ -345,6 +346,38 @@ public partial class MainWindow : Window
         if (ViewModel?.FilePath is { } path)
         {
             Shell.Reveal(this, path);
+        }
+    }
+
+    /// <summary>File > Export as CSV: the table the item's Tag names, saved where the person picks.</summary>
+    private void OnExportCsv(object sender, RoutedEventArgs e)
+    {
+        if (ViewModel is not { HasProject: true } vm || sender is not FrameworkElement { Tag: string tag }
+            || !Enum.TryParse(tag, out CsvReport report))
+        {
+            return;
+        }
+
+        var dialog = new SaveFileDialog
+        {
+            Title = $"Export {CsvReports.Title(report).ToLowerInvariant()} as CSV",
+            Filter = "CSV for Excel (*.csv)|*.csv",
+            FileName = CsvReports.FileName(vm, report),
+            InitialDirectory = vm.FilePath is { } open ? Path.GetDirectoryName(open) : null,
+        };
+
+        if (dialog.ShowDialog(this) != true)
+        {
+            return;
+        }
+
+        try
+        {
+            CsvReports.Build(vm, report).Save(dialog.FileName);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            MessageBox.Show(this, $"Could not write {dialog.FileName}: {ex.Message}", "Export as CSV", MessageBoxButton.OK, MessageBoxImage.Warning);
         }
     }
 
@@ -966,6 +999,38 @@ public partial class MainWindow : Window
         {
             vm.OpenSiteCommand.Execute(row);
         }
+    }
+
+    private void OnSearchHitDoubleClick(object sender, MouseButtonEventArgs e)
+    {
+        if (sender is DataGrid { SelectedItem: Core.Analysis.SearchHit hit } && ViewModel is { } vm)
+        {
+            vm.OpenSiteCommand.Execute(hit);
+        }
+    }
+
+    private void OnShowSearch(object sender, RoutedEventArgs e) => ShowLogicSearch();
+
+    /// <summary>Ctrl+Shift+F: the Search tab, with the selected tag (or the last search) ready to run.</summary>
+    private void ShowLogicSearch()
+    {
+        if (ViewModel is not { } vm)
+        {
+            return;
+        }
+
+        if (vm.SelectedTag is { } tag && vm.SelectedTab == MainViewModel.TagsTab)
+        {
+            vm.Search.Query = tag.Name;
+            vm.Search.WholeTag = true;
+        }
+
+        vm.SelectedTab = MainViewModel.SearchTab;
+        Dispatcher.BeginInvoke(() =>
+        {
+            LogicSearchBox.Focus();
+            LogicSearchBox.SelectAll();
+        }, System.Windows.Threading.DispatcherPriority.Input);
     }
 
     private void OnTagUseDoubleClick(object sender, MouseButtonEventArgs e)

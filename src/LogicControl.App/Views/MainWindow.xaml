@@ -265,6 +265,15 @@
         <MenuItem Header="Show in _Explorer" Click="OnRevealExport" IsEnabled="{Binding HasProject}"
                   ToolTip="Open the folder the export is in, with the file selected." />
         <MenuItem Header="Copy _path" Click="OnCopyExportPath" IsEnabled="{Binding HasProject}" />
+        <MenuItem Header="Export as CS_V" IsEnabled="{Binding HasProject}"
+                  ToolTip="Save a table for Excel - what the tab shows, with the filter applied">
+          <MenuItem Header="_Findings..." Click="OnExportCsv" Tag="Findings" />
+          <MenuItem Header="_Tags..." Click="OnExportCsv" Tag="Tags" />
+          <MenuItem Header="Tag _cross-reference..." Click="OnExportCsv" Tag="CrossReference"
+                    ToolTip="Every rung and line that uses each tag shown, one row each" />
+          <MenuItem Header="_Hardware..." Click="OnExportCsv" Tag="Hardware" />
+          <MenuItem Header="C_ommunications..." Click="OnExportCsv" Tag="Communications" />
+        </MenuItem>
         <MenuItem Header="Close pro_ject" Command="{Binding CloseCommand}" />
         <Separator />
         <MenuItem Header="_New development set" Click="OnDevelopNew" />
@@ -285,6 +294,7 @@
         <MenuItem Header="_Findings" Click="OnShowTab" Tag="6" InputGestureText="Ctrl+7" />
         <MenuItem Header="_Develop" Click="OnShowDevelop" InputGestureText="Ctrl+8" />
         <MenuItem Header="Co_mpare" Click="OnShowTab" Tag="8" InputGestureText="Ctrl+9" />
+        <MenuItem Header="Sea_rch all logic" Click="OnShowSearch" InputGestureText="Ctrl+Shift+F" />
         <Separator />
         <MenuItem Header="F_ilter..." Click="OnFocusFilter" InputGestureText="Ctrl+F"
                   ToolTip="Narrow every grid at once - modules, links, tags, findings" />
@@ -1101,11 +1111,37 @@
 
           <!-- ======================================================== findings -->
           <TabItem Header="{Binding FindingsHeader}">
-            <DataGrid ItemsSource="{Binding Findings}" Margin="0,8,0,0" MouseDoubleClick="OnFindingDoubleClick"
+            <DockPanel Margin="0,8,0,0">
+            <!-- Accepted findings - looked at and left as they are - stay out of the list, for this
+                 controller, until this is ticked. -->
+            <DockPanel DockPanel.Dock="Top" Margin="6,0,6,4">
+              <CheckBox DockPanel.Dock="Right" Content="{Binding ShowAcceptedText}" IsChecked="{Binding ShowAccepted}"
+                        ToolTip="Show the findings accepted for this controller as well, faded" />
+              <TextBlock Style="{StaticResource Muted}" VerticalAlignment="Center" TextWrapping="Wrap"
+                         Text="Tick Accept on a finding that is known and fine; it stays out of this list for this controller, in this export and the next." />
+            </DockPanel>
+            <DataGrid ItemsSource="{Binding Findings}" MouseDoubleClick="OnFindingDoubleClick"
                       AutoGenerateColumns="False" IsReadOnly="True" HeadersVisibility="Column" GridLinesVisibility="None"
                       SelectionMode="Single" CanUserAddRows="False" BorderThickness="0" RowHeight="NaN"
                       ToolTip="Double-click a finding to open the rung it is about">
+              <DataGrid.RowStyle>
+                <Style TargetType="DataGridRow" BasedOn="{StaticResource {x:Type DataGridRow}}">
+                  <Style.Triggers>
+                    <DataTrigger Binding="{Binding IsAccepted}" Value="True">
+                      <Setter Property="Opacity" Value="0.55" />
+                    </DataTrigger>
+                  </Style.Triggers>
+                </Style>
+              </DataGrid.RowStyle>
               <DataGrid.Columns>
+                <DataGridTemplateColumn Header="Accept" Width="62" SortMemberPath="IsAccepted">
+                  <DataGridTemplateColumn.CellTemplate>
+                    <DataTemplate DataType="{x:Type vm:FindingRowViewModel}">
+                      <CheckBox IsChecked="{Binding IsAccepted, UpdateSourceTrigger=PropertyChanged}" HorizontalAlignment="Center" Margin="0,6"
+                                ToolTip="Known and fine - keep it out of the list for this controller" />
+                    </DataTemplate>
+                  </DataGridTemplateColumn.CellTemplate>
+                </DataGridTemplateColumn>
                 <DataGridTemplateColumn Header="Severity" Width="84" SortMemberPath="Level">
                   <DataGridTemplateColumn.CellTemplate>
                     <DataTemplate>
@@ -1155,6 +1191,7 @@
                 </DataGridTemplateColumn>
               </DataGrid.Columns>
             </DataGrid>
+            </DockPanel>
           </TabItem>
 
           <!-- ======================================================== develop -->
@@ -2005,6 +2042,36 @@
                 </DockPanel>
               </Grid>
             </Grid>
+          </TabItem>
+
+          <!-- Search: text or a tag name in every rung, comment and ST line. Double-click a place
+               to open its rung on the Logic tab. -->
+          <TabItem Header="Search">
+            <DockPanel Margin="6,8,6,0" DataContext="{Binding Search}">
+              <DockPanel DockPanel.Dock="Top" Margin="0,0,0,6">
+                <Button DockPanel.Dock="Right" Style="{StaticResource PrimaryButton}" Content="Search" Margin="6,0,0,0"
+                        Command="{Binding SearchCommand}" />
+                <CheckBox DockPanel.Dock="Right" Content="Whole tag name" IsChecked="{Binding WholeTag}" VerticalAlignment="Center" Margin="10,0,4,0"
+                          ToolTip="Match a tag by its name - Motor finds Motor.Run and Motor[3], not Motor2 - and skip comments" />
+                <TextBox x:Name="LogicSearchBox" Text="{Binding Query, UpdateSourceTrigger=PropertyChanged}" VerticalContentAlignment="Center">
+                  <TextBox.InputBindings>
+                    <KeyBinding Key="Enter" Command="{Binding SearchCommand}" />
+                  </TextBox.InputBindings>
+                </TextBox>
+              </DockPanel>
+              <TextBlock DockPanel.Dock="Top" Style="{StaticResource Muted}" Text="{Binding Summary}" TextWrapping="Wrap" Margin="0,0,0,6" />
+              <DataGrid ItemsSource="{Binding Results}" MouseDoubleClick="OnSearchHitDoubleClick"
+                        AutoGenerateColumns="False" IsReadOnly="True" HeadersVisibility="Column" GridLinesVisibility="None"
+                        SelectionMode="Single" CanUserAddRows="False" BorderThickness="0"
+                        EnableRowVirtualization="True" VirtualizingPanel.VirtualizationMode="Recycling"
+                        ToolTip="Double-click a place to open its rung">
+                <DataGrid.Columns>
+                  <DataGridTextColumn Header="Where" Binding="{Binding Where}" Width="260" />
+                  <DataGridTextColumn Header="In" Binding="{Binding Kind}" Width="80" />
+                  <DataGridTextColumn Header="Text" Binding="{Binding Text}" Width="*" FontFamily="{DynamicResource mono}" />
+                </DataGrid.Columns>
+              </DataGrid>
+            </DockPanel>
           </TabItem>
         </TabControl>
       </Border>

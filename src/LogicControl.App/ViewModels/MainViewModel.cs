@@ -30,6 +30,7 @@ public sealed class MainViewModel : ObservableObject
     public const int FindingsTab = 6;
     public const int DevelopTab = 7;
     public const int CompareTab = 8;
+    public const int SearchTab = 9;
 
     private ProjectAnalysis? _analysis;
     private string? _filePath;
@@ -62,9 +63,11 @@ public sealed class MainViewModel : ObservableObject
     /// <param name="recent">The recent-files list: recent.json in the app, memory by default.</param>
     public MainViewModel(
         IApiKeyStore? keys = null, Func<HttpMessageHandler?>? handler = null, string? model = null,
-        AssistantBackend? backend = null, ClaudeCodeEnvironment? claudeCode = null, RecentFiles? recent = null)
+        AssistantBackend? backend = null, ClaudeCodeEnvironment? claudeCode = null, RecentFiles? recent = null,
+        AcceptedFindings? accepted = null)
     {
         Recent = recent ?? new RecentFiles();
+        Accepted = accepted ?? new AcceptedFindings();
         SystemView = new SystemViewModel(this);
         Compare = new CompareViewModel(this);
         Assistant = new AssistantViewModel(this, keys ?? new MemoryKeyStore(), handler, model, backend, claudeCode);
@@ -81,6 +84,7 @@ public sealed class MainViewModel : ObservableObject
         CloseCommand = new RelayCommand(Close, () => _analysis is not null);
         ClearFilterCommand = new RelayCommand(() => Filter = string.Empty);
         ShowOperandCommand = new RelayParameterCommand(o => ShowOperand(o as string), o => o is string { Length: > 0 });
+        Search = new SearchViewModel(() => _analysis);
         OpenSiteCommand = new RelayParameterCommand(o => OpenSite(o), o => SiteOf(o) is not null);
         StartDevelopingCommand = new RelayCommand(StartDeveloping);
         EditRoutineCommand = new RelayCommand(() => EditRung(null), CanEditRoutine);
@@ -340,7 +344,38 @@ public sealed class MainViewModel : ObservableObject
 
     public string TagsHeader => $"Tags  {Tags.Count}";
 
-    public string FindingsHeader => $"Findings  {Findings.Count}";
+    public string FindingsHeader => $"Findings  {Findings.Count(f => !f.IsAccepted)}";
+
+    /// <summary>Findings accepted for this controller, kept between runs.</summary>
+    public AcceptedFindings Accepted { get; }
+
+    private bool _showAccepted;
+
+    /// <summary>Accepted findings are left out of the list unless this is on.</summary>
+    public bool ShowAccepted
+    {
+        get => _showAccepted;
+        set
+        {
+            if (SetProperty(ref _showAccepted, value))
+            {
+                ApplyFilter();
+            }
+        }
+    }
+
+    /// <summary>"Show accepted (3)" - how many are hidden.</summary>
+    public string ShowAcceptedText => $"Show accepted ({_allFindings.Count(f => f.IsAccepted)})";
+
+    private void Accept(FindingRowViewModel row, bool accepted)
+    {
+        if (_analysis is { } analysis)
+        {
+            Accepted.Set(analysis.Project.Controller.Name, row.Finding, accepted);
+        }
+
+        ApplyFilter();
+    }
 
     public RoutineViewModel? Routine
     {
@@ -440,6 +475,9 @@ public sealed class MainViewModel : ObservableObject
     /// </summary>
     public RelayParameterCommand OpenSiteCommand { get; }
 
+    /// <summary>The Search tab.</summary>
+    public SearchViewModel Search { get; }
+
     /// <summary>
     /// Raised after <see cref="OpenSite"/> has put a routine on the Logic tab: the index in
     /// <see cref="RoutineViewModel.Lines"/> to scroll into view. The window does the scrolling.
@@ -504,6 +542,7 @@ public sealed class MainViewModel : ObservableObject
     {
         ArgumentNullException.ThrowIfNull(analysis);
         Loading(analysis);
+        Search.Clear();
 
         _analysis = analysis;
         _filePath ??= analysis.Project.SourcePath;
@@ -532,7 +571,10 @@ public sealed class MainViewModel : ObservableObject
             .ThenBy(t => t.Name, StringComparer.OrdinalIgnoreCase)
             .ToList();
 
-        _allFindings = analysis.Findings.Select(f => new FindingRowViewModel(f)).ToList();
+        string controller = analysis.Project.Controller.Name;
+        _allFindings = analysis.Findings
+            .Select(f => new FindingRowViewModel(f, Accept, Accepted.IsAccepted(controller, f)))
+            .ToList();
 
         Overview = new OverviewViewModel(analysis);
         Navigator = NavigatorBuilder.Build(analysis, bySubject);
@@ -574,6 +616,7 @@ public sealed class MainViewModel : ObservableObject
         _allComms = [];
         _allTags = [];
         _allFindings = [];
+        Search.Clear();
         Overview = null;
         Navigator = [];
         Routine = null;
@@ -653,6 +696,7 @@ public sealed class MainViewModel : ObservableObject
     private static FindingSite? SiteOf(object? target) => target switch
     {
         FindingSite site => site,
+        SearchHit hit => hit.Site,
         FindingRowViewModel row => row.Sites.FirstOrDefault(),
         TagUseRowViewModel use when use.Use.Routine != "(alias)" => FindingSite.Of(use.Use),
         Core.Logic.TagUse use when use.Routine != "(alias)" => FindingSite.Of(use),
@@ -701,7 +745,7 @@ public sealed class MainViewModel : ObservableObject
         Hardware = _allHardware.Where(r => Match(r.SearchText)).ToList();
         Communications = _allComms.Where(r => Match(r.SearchText)).ToList();
         Tags = _allTags.Where(r => Match(r.SearchText)).ToList();
-        Findings = _allFindings.Where(r => Match(r.SearchText)).ToList();
+        Findings = _allFindings.Where(r => (_showAccepted || !r.IsAccepted) && Match(r.SearchText)).ToList();
 
         OnPropertyChanged(nameof(Hardware));
         OnPropertyChanged(nameof(Communications));
@@ -711,6 +755,7 @@ public sealed class MainViewModel : ObservableObject
         OnPropertyChanged(nameof(CommsHeader));
         OnPropertyChanged(nameof(TagsHeader));
         OnPropertyChanged(nameof(FindingsHeader));
+        OnPropertyChanged(nameof(ShowAcceptedText));
     }
 
     private void RaiseAll()

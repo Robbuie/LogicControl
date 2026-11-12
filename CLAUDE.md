@@ -48,7 +48,9 @@ src/LogicControl.Core/        engine - MUST NOT reference any UI assembly
                               RungComparison, ProjectComparison (two exports - the Compare tab and
                               Claude's compare_* tools)
     Analysis/                 cross-reference, hardware tree, comms map, findings, ProjectAnalysis,
-                              PlantModel + PlantLayout (several projects joined; the System tab)
+                              PlantModel + PlantLayout (several projects joined; the System tab),
+                              LogicSearch (the Search tab)
+    Reports/                  CsvTable (File > Export as CSV)
     Assistant/                LogicTools (the AI's tool table), ClaudeClient (Messages API, SSE),
                               ConversationSession (tool-use loop), AssistantPrompt, McpServer
     Diagnostics/              rolling trace log, ported from NetControl
@@ -68,6 +70,8 @@ installer/                    Inno Setup script; tools/publish.ps1 builds exe + 
 ## Rules
 
 - **Findings have stable ids** (LC-HW-001...). Never renumber one; retire it and add a new id.
+  Accepted findings are kept by `Finding.Identity` (rule, subject, where - not the wording), so a
+  change to a rule's Subject or Location un-accepts what people accepted; change them deliberately.
   Each planted fault in `Fixtures/Line3.L5X` is marked with the rule it trips, and
   `AnalysisTests.EachPlantedFaultTripsItsRuleExactly` holds every rule to its count.
 - **Under-report rather than invent.** An instruction missing from `InstructionCatalog` reads

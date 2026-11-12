@@ -18,6 +18,12 @@ public sealed record Finding(
 {
     /// <summary>The rungs and lines the finding is about, in project order. Empty when it is about hardware or a tag list.</summary>
     public IReadOnlyList<FindingSite> Sites { get; init; } = Sites ?? [];
+
+    /// <summary>
+    /// What makes this finding the same one in the next export: its rule, what it is about and
+    /// where - not its wording, which can carry a count that changes. Accepted findings are kept by it.
+    /// </summary>
+    public string Identity => string.Join('|', Rule, Subject, Location ?? string.Join(';', Sites.Select(s => s.Text)));
 }
 
 /// <summary>Ordered most serious first, so a sort on it puts errors at the top.</summary>
