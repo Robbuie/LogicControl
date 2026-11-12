@@ -44,6 +44,7 @@ public static class FindingRules
         DoubleCoils(xref, findings);
         UnusedTags(project, xref, findings);
         ProtectedContent(project, findings);
+        UnreadLanguages(project, findings);
         DisabledAndInhibited(project, findings);
         RpiSlowerThanTask(project, xref, findings);
         StatusReadNotUsed(xref, findings);
@@ -249,11 +250,13 @@ public static class FindingRules
 
         // One finding listing them, not one per tag: a big project has hundreds, and a findings
         // list that is 90% "unused tag" hides the five things that matter.
+        int unread = project.AllRoutines.Count(IsUnread);
         findings.Add(new Finding(
             FindingSeverity.Info, "LC-LOG-002", "Logic", $"{unused.Count} unused tags",
             "No logic in this export reads or writes these. They may be used by an HMI or another "
             + $"controller: {string.Join(", ", unused.Take(40).Select(t => t.QualifiedName))}"
-            + (unused.Count > 40 ? $" and {unused.Count - 40} more." : ".")));
+            + (unused.Count > 40 ? $" and {unused.Count - 40} more." : ".")
+            + (unread > 0 ? $" {unread} routine{(unread == 1 ? " LogicControl cannot read (function block, SFC or protected) may use" : "s LogicControl cannot read (function block, SFC or protected) may use")} some of them." : string.Empty)));
     }
 
     private static void ProtectedContent(PlcProject project, List<Finding> findings)
@@ -267,6 +270,31 @@ public static class FindingRules
             findings.Add(new Finding(
                 FindingSeverity.Info, "LC-LOG-003", "Logic", $"{names.Count} protected",
                 $"Source-protected, so their logic is not in the export and not analysed: {string.Join(", ", names)}."));
+        }
+    }
+
+    /// <summary>Logic LogicControl lists but does not read: function block and SFC, or source-protected.</summary>
+    private static bool IsUnread(RoutineInfo routine) =>
+        routine.IsProtected || routine.Language is RoutineLanguage.FunctionBlock or RoutineLanguage.Sfc;
+
+    /// <summary>
+    /// Function block and SFC routines are listed and counted but their logic is not read, so the
+    /// tags they use look unused and what they call looks uncalled. Said once, plainly, so nobody
+    /// takes the cross-reference for the whole story. (Protected ones are LC-LOG-003.)
+    /// </summary>
+    private static void UnreadLanguages(PlcProject project, List<Finding> findings)
+    {
+        List<RoutineInfo> unread = project.AllRoutines
+            .Where(r => !r.IsProtected && r.Language is RoutineLanguage.FunctionBlock or RoutineLanguage.Sfc)
+            .ToList();
+
+        if (unread.Count > 0)
+        {
+            findings.Add(new Finding(
+                FindingSeverity.Info, "LC-LOG-011", "Logic", $"{unread.Count} routine{(unread.Count == 1 ? string.Empty : "s")} not analysed",
+                "Function block and SFC logic is listed but not read: tags used only there show as unused, and "
+                + $"routines only they call are not reported as uncalled. {string.Join(", ", unread.Select(r => $"{r.QualifiedName} ({(r.Language == RoutineLanguage.Sfc ? "SFC" : "FBD")})"))}.",
+                Sites: [.. unread.Select(r => new FindingSite(r.QualifiedName, null))]));
         }
     }
 
@@ -301,6 +329,12 @@ public static class FindingRules
     {
         foreach (ProgramInfo program in project.Programs)
         {
+            // A routine LogicControl cannot read may be the one that calls the others: under-report.
+            if (program.Routines.Any(IsUnread))
+            {
+                continue;
+            }
+
             foreach (RoutineInfo routine in program.Routines)
             {
                 bool entry = string.Equals(routine.Name, program.MainRoutineName, StringComparison.OrdinalIgnoreCase)

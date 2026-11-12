@@ -98,6 +98,7 @@ public class AnalysisTests
     [InlineData("LC-LOG-001", 1)]
     [InlineData("LC-LOG-002", 1)]
     [InlineData("LC-LOG-003", 0)]
+    [InlineData("LC-LOG-011", 0)]
     [InlineData("LC-LOG-006", 1)]
     [InlineData("LC-LOG-007", 1)]
     [InlineData("LC-LOG-008", 1)]
@@ -125,6 +126,25 @@ public class AnalysisTests
         Assert.DoesNotContain("UDT_RobotStatus", A.Findings.Single(f => f.Rule == "LC-LOG-009").Message, StringComparison.Ordinal);
         Assert.Equal(21, A.Findings.Count);
         Assert.Equal(FindingSeverity.Error, A.Findings[0].Severity);
+    }
+
+    [Fact]
+    public void LogicThatIsNotReadIsSaidAndNothingIsGuessedAboutIt()
+    {
+        // MainProgram gains a function block routine: it might be what calls OldLogic.
+        ProgramInfo main = A.Project.Programs.Single(p => p.Name == "MainProgram");
+        var fbd = new RoutineInfo { Name = "Blend", Owner = "MainProgram", Language = RoutineLanguage.FunctionBlock, GraphicalElementCount = 2 };
+        PlcProject p = A.Project with
+        {
+            Programs = [.. A.Project.Programs.Select(x => x == main ? x with { Routines = [.. x.Routines, fbd] } : x)],
+        };
+        ProjectAnalysis analysis = ProjectAnalysis.Analyse(p);
+
+        Finding unread = Assert.Single(analysis.Findings, f => f.Rule == "LC-LOG-011");
+        Assert.Contains("MainProgram/Blend (FBD)", unread.Message, StringComparison.Ordinal);
+        Assert.Equal("MainProgram/Blend", Assert.Single(unread.Sites).Routine);
+        Assert.DoesNotContain(analysis.Findings, f => f.Rule == "LC-LOG-007" && f.Subject.StartsWith("MainProgram/", StringComparison.Ordinal));
+        Assert.Contains("cannot read", analysis.Findings.Single(f => f.Rule == "LC-LOG-002").Message, StringComparison.Ordinal);
     }
 
     [Fact]

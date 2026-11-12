@@ -19,6 +19,10 @@
   rung stores the chunk of rungs around it. The same 300 steps take about 9 MB and a 2.6 MB file,
   and opening the file and going back to any step is faster. Every revision is still the whole
   set, so going back to any step works exactly as before.
+- **Function block and SFC routines are said, not guessed about.** A new finding,
+  LC-LOG-011, lists the routines whose logic is not read. A program with one of those (or a
+  protected routine) no longer reports its other routines as never called - the one that cannot
+  be read may call them - and the unused-tags finding says some may be used there.
 - **The Claude panel draws an answer once, not once per word.** A streamed answer was cut into
   paragraphs, tables and rungs again on every token and the whole answer redrawn; now only the
   part being written changes. Every paragraph also carried a hidden ladder view, table and text
