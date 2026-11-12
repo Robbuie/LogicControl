@@ -492,12 +492,18 @@ public sealed class MainViewModel : ObservableObject
         }
     }
 
+    /// <summary>Raised when a project has been read and is about to be shown - the window logs its size.</summary>
+    public event EventHandler<ProjectAnalysis>? ProjectLoaded;
+
+    private void Loading(ProjectAnalysis analysis) => ProjectLoaded?.Invoke(this, analysis);
+
     public Task ReloadAsync() => _filePath is null ? Task.CompletedTask : OpenAsync(_filePath);
 
     /// <summary>Shows an analysis that has already been built - what <see cref="OpenAsync"/> ends with.</summary>
     public void Load(ProjectAnalysis analysis)
     {
         ArgumentNullException.ThrowIfNull(analysis);
+        Loading(analysis);
 
         _analysis = analysis;
         _filePath ??= analysis.Project.SourcePath;

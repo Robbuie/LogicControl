@@ -23,6 +23,11 @@
   opens at once.
 - **Comparing two routines that differ all through** no longer builds a table tens of megabytes
   big; lines unique to each side anchor the comparison and the gaps between are compared alone.
+- **Help > About shows how much memory LogicControl is using**, and the log records each export
+  opened: its programs, rungs, tags and modules, how long it took and the memory after.
+- **Plant-sized tests.** Line3 grown to 450 programs, a 3,000-rung routine and 20,000 tags is
+  opened, analysed, compared and checked on every build against a budget of time and memory
+  several times what it takes today (under half a second and about 17 MB).
 - **Subroutines with parameters check clean.** An SBR or RET with any parameters was refused as
   "takes 0 operands", and every JSR parameter was counted as read. A JSR's inputs now read, its
   return parameters (after the input count) write, an SBR writes what it receives and a RET reads

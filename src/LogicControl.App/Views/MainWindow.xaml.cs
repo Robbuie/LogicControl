@@ -1114,7 +1114,7 @@ public partial class MainWindow : Window
             + "Instructions and routines and writes them as L5X for Studio 5000 to import. It never "
             + "connects to a controller.\n\n"
             + (BuildInfo.ExecutablePath is { } exe ? exe + "\n" : string.Empty)
-            + AppPaths.Data + "\n\n" + BuildInfo.ReleasesPage,
+            + AppPaths.Data + "\n\n" + MemoryUse.Describe() + "\n\n" + BuildInfo.ReleasesPage,
             "About LogicControl",
             MessageBoxButton.OK,
             MessageBoxImage.Information);

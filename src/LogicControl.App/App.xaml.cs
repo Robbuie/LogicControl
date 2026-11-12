@@ -1,4 +1,5 @@
 // UseWPF drops System.IO from the implicit usings; a file path arrives on the command line.
+using System.Globalization;
 using System.IO;
 using System.Text;
 using System.Windows;
@@ -105,6 +106,15 @@ public partial class App : Application
                 preferences.Open = viewModel.Assistant.IsOpen;
                 preferences.Save();
             }
+        };
+
+        TraceLog trace = _trace;
+        viewModel.ProjectLoaded += (_, analysis) =>
+        {
+            Core.Model.PlcProject p = analysis.Project;
+            trace.Info(string.Create(CultureInfo.InvariantCulture,
+                $"Opened {Path.GetFileName(p.SourcePath)}: {p.Programs.Count} programs, {p.AllRoutines.Sum(r => r.Rungs.Count)} rungs, "
+                + $"{p.AllTags.Count()} tags, {p.Modules.Count} modules, analysed in {analysis.Elapsed.TotalMilliseconds:F0} ms. {MemoryUse.Describe()}"));
         };
 
         var window = new MainWindow { DataContext = viewModel };
