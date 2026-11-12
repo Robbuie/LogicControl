@@ -34,6 +34,36 @@
     <!-- A table or rung in the chat: the same. -->
     <Style x:Key="ChatSideScroll" TargetType="ScrollViewer" BasedOn="{StaticResource SideScroll}" />
 
+    <!-- One line of a stacked change: text, or a rung drawn as ladder with a coloured bar. -->
+    <DataTemplate x:Key="DiffLineItem" DataType="{x:Type dev:DiffLineViewModel}">
+      <StackPanel>
+        <TextBlock Style="{StaticResource DiffLineText}" Text="{Binding Text}"
+                   Visibility="{Binding IsPrinted, Converter={StaticResource BoolToVisible}}" />
+
+        <!-- A rung drawn as ladder: a coloured bar for added or removed, its label and comment above -->
+        <Border Style="{StaticResource LogicLineRow}" Padding="0,4"
+                Visibility="{Binding IsDrawn, Converter={StaticResource BoolToVisible}}">
+          <Grid>
+            <Grid.ColumnDefinitions>
+              <ColumnDefinition Width="8" />
+              <ColumnDefinition Width="*" />
+            </Grid.ColumnDefinitions>
+            <Border Grid.Column="0" Style="{StaticResource ChangeBar}" />
+            <StackPanel Grid.Column="1">
+              <TextBlock Margin="2,0,0,2">
+                <Run Text="{Binding Label, Mode=OneWay}" FontWeight="SemiBold" Foreground="{DynamicResource txt-1}" /><Run
+                     Text="   " /><Run Text="{Binding Comment, Mode=OneWay}" FontStyle="Italic" Foreground="{DynamicResource good}" />
+              </TextBlock>
+              <ScrollViewer Style="{StaticResource SideScroll}">
+                <views:LadderRungView Style="{StaticResource LadderRung}" Text="{Binding Rung}" Shapes="{Binding Shapes}"
+                                      ToolTip="{Binding Rung}" />
+              </ScrollViewer>
+            </StackPanel>
+          </Grid>
+        </Border>
+      </StackPanel>
+    </DataTemplate>
+
     <!-- The lines of one change read top to bottom - rungs drawn as ladder or listed as text -
          shared by History and Compare. Removed rungs are labelled with the side they come from. -->
     <DataTemplate x:Key="ChangeLinesStacked" DataType="{x:Type dev:ItemChangeViewModel}">
@@ -42,38 +72,7 @@
           <Run Text="- " Foreground="{DynamicResource bad}" FontWeight="SemiBold" /><Run Text="{Binding BeforeName, Mode=OneWay}" /><Run
                Text="     " /><Run Text="+ " Foreground="{DynamicResource good}" FontWeight="SemiBold" /><Run Text="{Binding AfterName, Mode=OneWay}" />
         </TextBlock>
-        <ItemsControl ItemsSource="{Binding Lines}">
-          <ItemsControl.ItemTemplate>
-            <DataTemplate DataType="{x:Type dev:DiffLineViewModel}">
-              <StackPanel>
-                <TextBlock Style="{StaticResource DiffLineText}" Text="{Binding Text}"
-                           Visibility="{Binding IsPrinted, Converter={StaticResource BoolToVisible}}" />
-
-                <!-- A rung drawn as ladder: a coloured bar for added or removed, its label and comment above -->
-                <Border Style="{StaticResource LogicLineRow}" Padding="0,4"
-                        Visibility="{Binding IsDrawn, Converter={StaticResource BoolToVisible}}">
-                  <Grid>
-                    <Grid.ColumnDefinitions>
-                      <ColumnDefinition Width="8" />
-                      <ColumnDefinition Width="*" />
-                    </Grid.ColumnDefinitions>
-                    <Border Grid.Column="0" Style="{StaticResource ChangeBar}" />
-                    <StackPanel Grid.Column="1">
-                      <TextBlock Margin="2,0,0,2">
-                        <Run Text="{Binding Label, Mode=OneWay}" FontWeight="SemiBold" Foreground="{DynamicResource txt-1}" /><Run
-                             Text="   " /><Run Text="{Binding Comment, Mode=OneWay}" FontStyle="Italic" Foreground="{DynamicResource good}" />
-                      </TextBlock>
-                      <ScrollViewer Style="{StaticResource SideScroll}">
-                        <views:LadderRungView Style="{StaticResource LadderRung}" Text="{Binding Rung}" Shapes="{Binding Shapes}"
-                                              ToolTip="{Binding Rung}" />
-                      </ScrollViewer>
-                    </StackPanel>
-                  </Grid>
-                </Border>
-              </StackPanel>
-            </DataTemplate>
-          </ItemsControl.ItemTemplate>
-        </ItemsControl>
+        <ItemsControl ItemsSource="{Binding Lines}" ItemTemplate="{StaticResource DiffLineItem}" />
       </StackPanel>
     </DataTemplate>
 
@@ -108,6 +107,25 @@
       </Border>
     </DataTemplate>
 
+    <!-- One row of two panes: a heading, a note, or the older and newer side by side. -->
+    <DataTemplate x:Key="DiffRowItem" DataType="{x:Type dev:DiffRowViewModel}">
+      <Grid>
+        <TextBlock Text="{Binding Text}" FontWeight="SemiBold" Foreground="{DynamicResource txt-0}" Margin="0,8,0,3"
+                   Visibility="{Binding IsHeading, Converter={StaticResource BoolToVisible}}" />
+        <TextBlock Style="{StaticResource DiffCellText}" Text="{Binding Text}" Foreground="{DynamicResource txt-2}" HorizontalAlignment="Center"
+                   Visibility="{Binding IsNote, Converter={StaticResource BoolToVisible}}" />
+        <Grid Visibility="{Binding IsPair, Converter={StaticResource BoolToVisible}}">
+          <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="*" />
+            <ColumnDefinition Width="8" />
+            <ColumnDefinition Width="*" />
+          </Grid.ColumnDefinitions>
+          <ContentControl Grid.Column="0" Focusable="False" Content="{Binding Left}" ContentTemplate="{StaticResource DiffCell}" />
+          <ContentControl Grid.Column="2" Focusable="False" Content="{Binding Right}" ContentTemplate="{StaticResource DiffCell}" />
+        </Grid>
+      </Grid>
+    </DataTemplate>
+
     <!-- The lines of one change as two panes: the older version on the left, the newer on the
          right, each headed with what it is - "Open project - Line3 (Line3.L5X)", "Revision #4" -
          so nobody has to work out which is before and which is after. -->
@@ -128,27 +146,7 @@
                        ToolTip="{Binding AfterName}" />
           </Border>
         </Grid>
-        <ItemsControl ItemsSource="{Binding Rows}">
-          <ItemsControl.ItemTemplate>
-            <DataTemplate DataType="{x:Type dev:DiffRowViewModel}">
-              <Grid>
-                <TextBlock Text="{Binding Text}" FontWeight="SemiBold" Foreground="{DynamicResource txt-0}" Margin="0,8,0,3"
-                           Visibility="{Binding IsHeading, Converter={StaticResource BoolToVisible}}" />
-                <TextBlock Style="{StaticResource DiffCellText}" Text="{Binding Text}" Foreground="{DynamicResource txt-2}" HorizontalAlignment="Center"
-                           Visibility="{Binding IsNote, Converter={StaticResource BoolToVisible}}" />
-                <Grid Visibility="{Binding IsPair, Converter={StaticResource BoolToVisible}}">
-                  <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="*" />
-                    <ColumnDefinition Width="8" />
-                    <ColumnDefinition Width="*" />
-                  </Grid.ColumnDefinitions>
-                  <ContentControl Grid.Column="0" Focusable="False" Content="{Binding Left}" ContentTemplate="{StaticResource DiffCell}" />
-                  <ContentControl Grid.Column="2" Focusable="False" Content="{Binding Right}" ContentTemplate="{StaticResource DiffCell}" />
-                </Grid>
-              </Grid>
-            </DataTemplate>
-          </ItemsControl.ItemTemplate>
-        </ItemsControl>
+        <ItemsControl ItemsSource="{Binding Rows}" ItemTemplate="{StaticResource DiffRowItem}" />
       </StackPanel>
     </DataTemplate>
 
@@ -159,6 +157,66 @@
       <Style.Triggers>
         <DataTrigger Binding="{Binding SideBySide}" Value="True">
           <Setter Property="ContentTemplate" Value="{StaticResource ChangeLinesPanes}" />
+        </DataTrigger>
+      </Style.Triggers>
+    </Style>
+
+    <!-- The same two views for a pane that shows one change on its own - the Compare tab. The list
+         scrolls itself and is virtualised, so a routine with hundreds of changed rungs draws only
+         the ones on screen (History stacks several changes in one scroller and keeps the above). -->
+    <ControlTemplate x:Key="VirtualLines" TargetType="ItemsControl">
+      <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" CanContentScroll="True">
+        <ItemsPresenter />
+      </ScrollViewer>
+    </ControlTemplate>
+
+    <ItemsPanelTemplate x:Key="VirtualStack">
+      <VirtualizingStackPanel />
+    </ItemsPanelTemplate>
+
+    <DataTemplate x:Key="ChangeLinesStackedScrolling" DataType="{x:Type dev:ItemChangeViewModel}">
+      <DockPanel Margin="0,6,0,0">
+        <TextBlock DockPanel.Dock="Top" Style="{StaticResource Muted}" TextWrapping="Wrap" Margin="0,0,0,4">
+          <Run Text="- " Foreground="{DynamicResource bad}" FontWeight="SemiBold" /><Run Text="{Binding BeforeName, Mode=OneWay}" /><Run
+               Text="     " /><Run Text="+ " Foreground="{DynamicResource good}" FontWeight="SemiBold" /><Run Text="{Binding AfterName, Mode=OneWay}" />
+        </TextBlock>
+        <ItemsControl ItemsSource="{Binding Lines}" ItemTemplate="{StaticResource DiffLineItem}"
+                      Template="{StaticResource VirtualLines}" ItemsPanel="{StaticResource VirtualStack}"
+                      VirtualizingPanel.IsVirtualizing="True" VirtualizingPanel.VirtualizationMode="Recycling"
+                      VirtualizingPanel.ScrollUnit="Pixel" ScrollViewer.CanContentScroll="True" />
+      </DockPanel>
+    </DataTemplate>
+
+    <DataTemplate x:Key="ChangeLinesPanesScrolling" DataType="{x:Type dev:ItemChangeViewModel}">
+      <DockPanel Margin="0,6,0,0">
+        <Grid DockPanel.Dock="Top" Margin="0,0,0,4">
+          <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="*" />
+            <ColumnDefinition Width="8" />
+            <ColumnDefinition Width="*" />
+          </Grid.ColumnDefinitions>
+          <Border Grid.Column="0" Style="{StaticResource DiffPaneHead}" BorderBrush="{DynamicResource bad}">
+            <TextBlock Text="{Binding BeforeName}" FontWeight="SemiBold" Foreground="{DynamicResource txt-0}" TextTrimming="CharacterEllipsis"
+                       ToolTip="{Binding BeforeName}" />
+          </Border>
+          <Border Grid.Column="2" Style="{StaticResource DiffPaneHead}" BorderBrush="{DynamicResource good}">
+            <TextBlock Text="{Binding AfterName}" FontWeight="SemiBold" Foreground="{DynamicResource txt-0}" TextTrimming="CharacterEllipsis"
+                       ToolTip="{Binding AfterName}" />
+          </Border>
+        </Grid>
+        <ItemsControl ItemsSource="{Binding Rows}" ItemTemplate="{StaticResource DiffRowItem}"
+                      Template="{StaticResource VirtualLines}" ItemsPanel="{StaticResource VirtualStack}"
+                      VirtualizingPanel.IsVirtualizing="True" VirtualizingPanel.VirtualizationMode="Recycling"
+                      VirtualizingPanel.ScrollUnit="Pixel" ScrollViewer.CanContentScroll="True" />
+      </DockPanel>
+    </DataTemplate>
+
+    <Style x:Key="ChangeLinesScrolling" TargetType="ContentControl">
+      <Setter Property="Focusable" Value="False" />
+      <Setter Property="ContentTemplate" Value="{StaticResource ChangeLinesStackedScrolling}" />
+      <Style.Triggers>
+        <DataTrigger Binding="{Binding SideBySide}" Value="True">
+          <Setter Property="ContentTemplate" Value="{StaticResource ChangeLinesPanesScrolling}" />
         </DataTrigger>
       </Style.Triggers>
     </Style>
@@ -1943,9 +2001,7 @@
                     </StackPanel>
                     <TextBlock Style="{StaticResource PanelTitle}" Text="{Binding Title}" FontSize="15" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
                   </DockPanel>
-                  <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
-                    <ContentControl Content="{Binding}" Style="{StaticResource ChangeLines}" />
-                  </ScrollViewer>
+                  <ContentControl Content="{Binding}" Style="{StaticResource ChangeLinesScrolling}" />
                 </DockPanel>
               </Grid>
             </Grid>
@@ -2069,66 +2125,96 @@
                           ScrollChanged="OnChatScrollChanged" Padding="12,0,12,6">
               <ItemsControl ItemsSource="{Binding Items}">
                 <ItemsControl.Resources>
+                  <!-- One template per kind of segment, chosen by ChatSegmentPicker. A segment builds only
+                       what it shows - a paragraph no longer carries a hidden ladder view, table and text
+                       boxes - and a streamed answer rebuilds only its newest segment. -->
+                  <DataTemplate x:Key="ChatParagraph" DataType="{x:Type asst:ChatSegment}">
+                    <views:ChatRichText Runs="{Binding Inlines}" Foreground="{DynamicResource txt-1}" Margin="0,2,0,4" />
+                  </DataTemplate>
+
+                  <DataTemplate x:Key="ChatHeading" DataType="{x:Type asst:ChatSegment}">
+                    <views:ChatRichText Runs="{Binding Inlines}" Foreground="{DynamicResource txt-0}" FontWeight="SemiBold" Margin="0,8,0,2" />
+                  </DataTemplate>
+
+                  <!-- A list item: marker, then the text, indented by level -->
+                  <DataTemplate x:Key="ChatBullet" DataType="{x:Type asst:ChatSegment}">
+                    <Grid Margin="{Binding Indent, Converter={StaticResource LeftMargin}}">
+                      <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="20" />
+                        <ColumnDefinition Width="*" />
+                      </Grid.ColumnDefinitions>
+                      <TextBlock Grid.Column="0" Text="{Binding Marker}" Foreground="{DynamicResource txt-2}" HorizontalAlignment="Right" Margin="0,0,6,0" />
+                      <views:ChatRichText Grid.Column="1" Runs="{Binding Inlines}" Foreground="{DynamicResource txt-1}" Margin="0,1" />
+                    </Grid>
+                  </DataTemplate>
+
+                  <!-- A table: scrolls sideways when it is wider than the panel -->
+                  <DataTemplate x:Key="ChatTableSegment" DataType="{x:Type asst:ChatSegment}">
+                    <Border Background="{DynamicResource bg-1}" BorderBrush="{DynamicResource line}" BorderThickness="1" CornerRadius="5" Margin="0,4">
+                      <ScrollViewer Style="{StaticResource ChatSideScroll}">
+                        <views:ChatTable Rows="{Binding Rows}" />
+                      </ScrollViewer>
+                    </Border>
+                  </DataTemplate>
+
+                  <!-- Code that is not a rung -->
+                  <DataTemplate x:Key="ChatCode" DataType="{x:Type asst:ChatSegment}">
+                    <Border Background="{DynamicResource bg-1}" BorderBrush="{DynamicResource line-soft}" BorderThickness="1" CornerRadius="5" Padding="8,6" Margin="0,4">
+                      <TextBox Style="{StaticResource ChatText}" FontFamily="{DynamicResource mono}" Text="{Binding Text, Mode=OneWay}" TextWrapping="NoWrap"
+                               HorizontalScrollBarVisibility="Auto" />
+                    </Border>
+                  </DataTemplate>
+
+                  <!-- A rung: drawn as ladder, its caption above, its neutral text a click away -->
+                  <DataTemplate x:Key="ChatRung" DataType="{x:Type asst:ChatSegment}">
+                    <Border Background="{DynamicResource bg-1}" BorderBrush="{DynamicResource line-soft}" BorderThickness="1" CornerRadius="5" Padding="6,4,6,6" Margin="0,4">
+                      <StackPanel>
+                        <DockPanel Margin="2,0,0,2">
+                          <ToggleButton x:Name="showText" DockPanel.Dock="Right" Style="{StaticResource ExpanderToggle}"
+                                        ToolTip="Show the rung as text, to copy into Studio 5000" />
+                          <TextBlock Text="{Binding Caption}" Style="{StaticResource Muted}" TextWrapping="Wrap" VerticalAlignment="Center"
+                                     Visibility="{Binding HasCaption, Converter={StaticResource BoolToVisible}}" />
+                        </DockPanel>
+                        <ScrollViewer Style="{StaticResource ChatSideScroll}">
+                          <views:LadderRungView Style="{StaticResource LadderRung}" Text="{Binding Text}"
+                                                Shapes="{Binding DataContext.Assistant.Shapes, RelativeSource={RelativeSource AncestorType=Window}}" />
+                        </ScrollViewer>
+                        <TextBox Style="{StaticResource ChatText}" FontFamily="{DynamicResource mono}" Text="{Binding Text, Mode=OneWay}" Margin="2,4,2,0"
+                                 Visibility="{Binding IsChecked, ElementName=showText, Converter={StaticResource BoolToVisible}}" />
+                      </StackPanel>
+                    </Border>
+                  </DataTemplate>
+
+                  <Style x:Key="ChatSegmentPicker" TargetType="ContentControl">
+                    <Setter Property="Focusable" Value="False" />
+                    <Setter Property="Margin" Value="0,2" />
+                    <Setter Property="ContentTemplate" Value="{StaticResource ChatParagraph}" />
+                    <Style.Triggers>
+                      <DataTrigger Binding="{Binding IsHeading}" Value="True">
+                        <Setter Property="ContentTemplate" Value="{StaticResource ChatHeading}" />
+                      </DataTrigger>
+                      <DataTrigger Binding="{Binding IsBullet}" Value="True">
+                        <Setter Property="ContentTemplate" Value="{StaticResource ChatBullet}" />
+                      </DataTrigger>
+                      <DataTrigger Binding="{Binding IsTable}" Value="True">
+                        <Setter Property="ContentTemplate" Value="{StaticResource ChatTableSegment}" />
+                      </DataTrigger>
+                      <DataTrigger Binding="{Binding IsCode}" Value="True">
+                        <Setter Property="ContentTemplate" Value="{StaticResource ChatCode}" />
+                      </DataTrigger>
+                      <DataTrigger Binding="{Binding IsRung}" Value="True">
+                        <Setter Property="ContentTemplate" Value="{StaticResource ChatRung}" />
+                      </DataTrigger>
+                    </Style.Triggers>
+                  </Style>
+
                   <DataTemplate DataType="{x:Type asst:ChatMessageViewModel}">
                     <Border x:Name="bubble" Margin="0,4,0,8" Padding="0" CornerRadius="8">
                       <StackPanel>
                         <ItemsControl ItemsSource="{Binding Segments}">
                           <ItemsControl.ItemTemplate>
                             <DataTemplate DataType="{x:Type asst:ChatSegment}">
-                              <StackPanel Margin="0,2">
-                                <!-- A paragraph -->
-                                <views:ChatRichText Runs="{Binding Inlines}" Foreground="{DynamicResource txt-1}" Margin="0,2,0,4"
-                                                    Visibility="{Binding IsText, Converter={StaticResource BoolToVisible}}" />
-
-                                <!-- A heading -->
-                                <views:ChatRichText Runs="{Binding Inlines}" Foreground="{DynamicResource txt-0}" FontWeight="SemiBold" Margin="0,8,0,2"
-                                                    Visibility="{Binding IsHeading, Converter={StaticResource BoolToVisible}}" />
-
-                                <!-- A list item: marker, then the text, indented by level -->
-                                <Grid Margin="{Binding Indent, Converter={StaticResource LeftMargin}}"
-                                      Visibility="{Binding IsBullet, Converter={StaticResource BoolToVisible}}">
-                                  <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="20" />
-                                    <ColumnDefinition Width="*" />
-                                  </Grid.ColumnDefinitions>
-                                  <TextBlock Grid.Column="0" Text="{Binding Marker}" Foreground="{DynamicResource txt-2}" HorizontalAlignment="Right" Margin="0,0,6,0" />
-                                  <views:ChatRichText Grid.Column="1" Runs="{Binding Inlines}" Foreground="{DynamicResource txt-1}" Margin="0,1" />
-                                </Grid>
-
-                                <!-- A table: scrolls sideways when it is wider than the panel -->
-                                <Border Background="{DynamicResource bg-1}" BorderBrush="{DynamicResource line}" BorderThickness="1" CornerRadius="5" Margin="0,4"
-                                        Visibility="{Binding IsTable, Converter={StaticResource BoolToVisible}}">
-                                  <ScrollViewer Style="{StaticResource ChatSideScroll}">
-                                    <views:ChatTable Rows="{Binding Rows}" />
-                                  </ScrollViewer>
-                                </Border>
-
-                                <!-- Code that is not a rung -->
-                                <Border Background="{DynamicResource bg-1}" BorderBrush="{DynamicResource line-soft}" BorderThickness="1" CornerRadius="5" Padding="8,6" Margin="0,4"
-                                        Visibility="{Binding IsCode, Converter={StaticResource BoolToVisible}}">
-                                  <TextBox Style="{StaticResource ChatText}" FontFamily="{DynamicResource mono}" Text="{Binding Text, Mode=OneWay}" TextWrapping="NoWrap"
-                                           HorizontalScrollBarVisibility="Auto" />
-                                </Border>
-
-                                <!-- A rung: drawn as ladder, its caption above, its neutral text a click away -->
-                                <Border Background="{DynamicResource bg-1}" BorderBrush="{DynamicResource line-soft}" BorderThickness="1" CornerRadius="5" Padding="6,4,6,6" Margin="0,4"
-                                        Visibility="{Binding IsRung, Converter={StaticResource BoolToVisible}}">
-                                  <StackPanel>
-                                    <DockPanel Margin="2,0,0,2">
-                                      <ToggleButton x:Name="showText" DockPanel.Dock="Right" Style="{StaticResource ExpanderToggle}"
-                                                    ToolTip="Show the rung as text, to copy into Studio 5000" />
-                                      <TextBlock Text="{Binding Caption}" Style="{StaticResource Muted}" TextWrapping="Wrap" VerticalAlignment="Center"
-                                                 Visibility="{Binding HasCaption, Converter={StaticResource BoolToVisible}}" />
-                                    </DockPanel>
-                                    <ScrollViewer Style="{StaticResource ChatSideScroll}">
-                                      <views:LadderRungView Style="{StaticResource LadderRung}" Text="{Binding Text}"
-                                                            Shapes="{Binding DataContext.Assistant.Shapes, RelativeSource={RelativeSource AncestorType=Window}}" />
-                                    </ScrollViewer>
-                                    <TextBox Style="{StaticResource ChatText}" FontFamily="{DynamicResource mono}" Text="{Binding Text, Mode=OneWay}" Margin="2,4,2,0"
-                                             Visibility="{Binding IsChecked, ElementName=showText, Converter={StaticResource BoolToVisible}}" />
-                                  </StackPanel>
-                                </Border>
-                              </StackPanel>
+                              <ContentControl Content="{Binding}" Style="{StaticResource ChatSegmentPicker}" />
                             </DataTemplate>
                           </ItemsControl.ItemTemplate>
                         </ItemsControl>

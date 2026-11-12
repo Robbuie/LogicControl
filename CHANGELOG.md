@@ -1,6 +1,6 @@
 # Changelog
 
-## 0.5.6 - history without the copies
+## 0.5.6 - lighter on memory
 
 - **Editing a big routine no longer fills memory.** Every revision in a development set's
   history held a full copy of every draft, so editing a 2,000-rung routine in place kept a copy of
@@ -9,6 +9,20 @@
   rung stores the chunk of rungs around it. The same 300 steps take about 9 MB and a 2.6 MB file,
   and opening the file and going back to any step is faster. Every revision is still the whole
   set, so going back to any step works exactly as before.
+- **The Claude panel draws an answer once, not once per word.** A streamed answer was cut into
+  paragraphs, tables and rungs again on every token and the whole answer redrawn; now only the
+  part being written changes. Every paragraph also carried a hidden ladder view, table and text
+  boxes it never showed - each part now builds only what it shows.
+- **Long chats stay light (API key).** Every question re-sent everything every tool had returned.
+  Past about 200,000 characters of tool output, results from before the last two questions are
+  replaced with a short note; Claude calls the tool again if it needs one.
+- **Typing in a big routine stays quick.** Each key re-checked every draft, rechecked every rung
+  and rebuilt the Logic tab; now that happens once typing pauses for a quarter of a second, and
+  always before an export, a project copy or a revision.
+- **The Compare tab draws only the rungs on screen**, so a routine with hundreds of changed rungs
+  opens at once.
+- **Comparing two routines that differ all through** no longer builds a table tens of megabytes
+  big; lines unique to each side anchor the comparison and the gaps between are compared alone.
 - **Subroutines with parameters check clean.** An SBR or RET with any parameters was refused as
   "takes 0 operands", and every JSR parameter was counted as read. A JSR's inputs now read, its
   return parameters (after the input count) write, an SBR writes what it receives and a RET reads

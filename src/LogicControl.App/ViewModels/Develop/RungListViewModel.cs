@@ -115,14 +115,26 @@ public sealed class RungListViewModel : ObservableObject
 
     internal void Changed(RungEditorViewModel? rung)
     {
-        _owner.Changed();
+        // A rename elsewhere - a tag added, a UDT member renamed - can fix or break any rung, so
+        // the others are rechecked too: once typing pauses, not per key.
+        _owner.Changed(this, () =>
+        {
+            foreach (RungEditorViewModel r in Items)
+            {
+                if (!ReferenceEquals(r, rung))
+                {
+                    r.Recheck();
+                }
+            }
+        });
+    }
+
+    /// <summary>Rechecks every rung - after the tags, types or parameters they use changed.</summary>
+    internal void RecheckAll()
+    {
         foreach (RungEditorViewModel r in Items)
         {
-            if (!ReferenceEquals(r, rung))
-            {
-                // A rename elsewhere - a tag added, a UDT member renamed - can fix or break any rung.
-                r.Recheck();
-            }
+            r.Recheck();
         }
     }
 

@@ -37,6 +37,18 @@ public sealed class ConversationSession(ClaudeClient client, LogicTools tools, A
 
     public int MessageCount => _messages.Count;
 
+    /// <summary>
+    /// How much tool output - in characters - the history may hold before the oldest is cleared.
+    /// Every request sends the whole history, so a long chat that has read a dozen routines pays
+    /// for all of them on every question, and holds them all in memory.
+    /// </summary>
+    internal int ToolResultBudget { get; set; } = 200_000;
+
+    /// <summary>Tool results from this many of the latest questions are always kept whole.</summary>
+    internal const int KeepToolResultsFromQuestions = 2;
+
+    internal const string ClearedToolResult = "(Cleared to keep the conversation short. Call the tool again if you need this.)";
+
     public string Model => Options.Model;
 
     public void Reset()
@@ -57,6 +69,7 @@ public sealed class ConversationSession(ClaudeClient client, LogicTools tools, A
         ArgumentException.ThrowIfNullOrWhiteSpace(userText);
         ArgumentNullException.ThrowIfNull(sink);
 
+        ClearOldToolResults();
         string text = string.IsNullOrWhiteSpace(context) ? userText : $"<context>\n{context.Trim()}\n</context>\n\n{userText}";
         _messages.Add(new JsonObject
         {
@@ -116,6 +129,44 @@ public sealed class ConversationSession(ClaudeClient client, LogicTools tools, A
             throw;
         }
     }
+
+    /// <summary>
+    /// Once the tool output in the history passes <see cref="ToolResultBudget"/>, replaces every
+    /// tool result from before the last <see cref="KeepToolResultsFromQuestions"/> questions with a
+    /// short note. Runs once per question, and only past the budget, so the prompt cache - which
+    /// a changed history invalidates - is given up rarely, not every turn.
+    /// </summary>
+    private void ClearOldToolResults()
+    {
+        List<JsonObject> results = [.. ToolResults(_messages)];
+        if (results.Sum(r => ((string?)r["content"])?.Length ?? 0) <= ToolResultBudget)
+        {
+            return;
+        }
+
+        int questions = 0;
+        int keepFrom = _messages.Count;
+        for (int i = _messages.Count - 1; i >= 0 && questions < KeepToolResultsFromQuestions; i--)
+        {
+            if ((string?)_messages[i]["role"] == "user" && _messages[i]["content"] is JsonArray c
+                && c.OfType<JsonObject>().Any(b => (string?)b["type"] == "text"))
+            {
+                questions++;
+                keepFrom = i;
+            }
+        }
+
+        foreach (JsonObject result in ToolResults(_messages.Take(keepFrom)))
+        {
+            result["content"] = ClearedToolResult;
+        }
+    }
+
+    private static IEnumerable<JsonObject> ToolResults(IEnumerable<JsonObject> messages) =>
+        messages.Where(m => (string?)m["role"] == "user")
+            .SelectMany(m => m["content"] as JsonArray ?? [])
+            .OfType<JsonObject>()
+            .Where(b => (string?)b["type"] == "tool_result" && b["content"] is JsonValue);
 
     /// <summary>
     /// After a stop or a failure, leaves the history in a state the API accepts: every tool_use

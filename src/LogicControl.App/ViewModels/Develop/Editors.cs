@@ -247,14 +247,7 @@ public sealed class RoutineEditorViewModel : ObservableObject, IRungHost
     {
         apply();
         OnPropertyChanged(string.Empty);
-        _owner.Changed();
-        if (recheckRungs)
-        {
-            foreach (RungEditorViewModel r in Rungs.Items)
-            {
-                r.Recheck();
-            }
-        }
+        _owner.Changed(this, recheckRungs ? Rungs.RecheckAll : null);
     }
 }
 
@@ -439,11 +432,7 @@ public sealed class AoiEditorViewModel : ObservableObject, IRungHost
     internal void Changed()
     {
         OnPropertyChanged(nameof(CallSignature));
-        _owner.Changed();
-        foreach (RungEditorViewModel r in Rungs.Items)
-        {
-            r.Recheck();
-        }
+        _owner.Changed(this, Rungs.RecheckAll);
     }
 
     private IEnumerable<string> Names() => _aoi.Parameters.Select(p => p.Name).Concat(_aoi.LocalTags.Select(l => l.Name));

@@ -79,6 +79,40 @@ public class DevelopViewModelTests
     }
 
     [Fact]
+    public async Task TypingIsCheckedOnceItPausesAndBeforeAnythingReadsTheResult()
+    {
+        MainViewModel main = await OpenLine3();
+        DevelopViewModel d = main.Develop;
+        var waiting = new List<Action>();
+        d.AfterTyping = waiting.Add;
+        main.EditRoutineCommand.Execute(null);
+        var editor = (RoutineEditorViewModel)d.Editor!;
+        RoutineViewModel shown = main.Routine!;
+
+        // Every key queues the check; none runs it, and the Logic tab is not rebuilt per key.
+        foreach (string text in new[] { "X", "XI", "XIC(A)[XIO(B),XIC(C)" })
+        {
+            editor.Rungs.Items[0].Text = text;
+        }
+
+        Assert.Equal(3, waiting.Count);
+        Assert.Same(shown, main.Routine);
+        Assert.True(d.CanExport);
+
+        // The pause: one check, and the Logic tab shows the edit.
+        waiting[^1]();
+        Assert.False(d.CanExport);
+        Assert.NotSame(shown, main.Routine);
+
+        // Anything that reads the result runs a pending check first: export refuses the broken rung
+        // even though the pause never came.
+        editor.Rungs.Items[0].Text = "NOP();";
+        editor.Rungs.Items[1].Text = "XIC(A)[XIO(B)";
+        Assert.Throws<InvalidOperationException>(() => d.ExportImportFiles(Path.Combine(Path.GetTempPath(), "lc-never-written")));
+        Assert.False(d.CanExport);
+    }
+
+    [Fact]
     public void ATemplateAddsItsTypeTagsAndRungsAndOpensTheRoutine()
     {
         var d = new DevelopViewModel();

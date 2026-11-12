@@ -121,6 +121,7 @@ public sealed class DevelopViewModel : ObservableObject
     /// <summary>Records edits typed since the last revision, if any.</summary>
     public void CommitPending()
     {
+        CheckTyping();
         if (_pendingLabel is { } label)
         {
             _pendingLabel = null;
@@ -630,12 +631,12 @@ public sealed class DevelopViewModel : ObservableObject
     /// <summary>Writes one import file per item into <paramref name="folder"/>. Returns the paths written.</summary>
     public IReadOnlyList<string> ExportImportFiles(string folder)
     {
+        CommitPending();
         if (!CanExport)
         {
             throw new InvalidOperationException("Fix the errors in the list before exporting.");
         }
 
-        CommitPending();
         Directory.CreateDirectory(folder);
         var written = new List<string>();
         foreach ((string name, System.Xml.Linq.XDocument doc) in L5xWriter.ExportAll(_set))
@@ -654,6 +655,7 @@ public sealed class DevelopViewModel : ObservableObject
     /// <summary>Writes the drafts into a copy of the open project at <paramref name="outputPath"/>.</summary>
     public MergeReport MergeInto(string outputPath)
     {
+        CheckTyping();
         if (!CanMerge || _project is null)
         {
             throw new InvalidOperationException(MergeHint);
@@ -668,9 +670,34 @@ public sealed class DevelopViewModel : ObservableObject
 
     // ------------------------------------------------------------------ editing
 
+    /// <summary>
+    /// Runs the work typing causes - checking every draft, redrawing the edited routine in the
+    /// Logic tab - once typing pauses, not on every key. The window sets a short timer; left null
+    /// (tests, the --mcp host) the work runs at once. Anything that reads the result first - a
+    /// revision, an export, Claude's tools - calls <see cref="CommitPending"/>, which runs it.
+    /// </summary>
+    public Action<Action>? AfterTyping { get; set; }
+
+    private bool _typedSinceCheck;
+
+    /// <summary>What editors asked to run after the next check - rechecking their rungs - by editor.</summary>
+    private readonly Dictionary<object, Action> _afterCheck = new(ReferenceEqualityComparer.Instance);
+
     /// <summary>Called by every editor after it changes a draft.</summary>
-    public void Changed()
+    public void Changed() => Changed(null, null);
+
+    /// <summary>
+    /// Called by an editor after it changes a draft, with what it needs done once the drafts are
+    /// checked again (its rungs rechecked against the new tags and types). The latest request from
+    /// each <paramref name="editor"/> is kept.
+    /// </summary>
+    public void Changed(object? editor, Action? afterCheck)
     {
+        if (editor is not null && afterCheck is not null)
+        {
+            _afterCheck[editor] = afterCheck;
+        }
+
         if (_suspend)
         {
             return;
@@ -690,13 +717,40 @@ public sealed class DevelopViewModel : ObservableObject
         }
 
         IsDirty = true;
+        ClearCommand.NotifyCanExecuteChanged();
+        _typedSinceCheck = true;
+        if (AfterTyping is { } later)
+        {
+            later(CheckTyping);
+        }
+        else
+        {
+            CheckTyping();
+        }
+    }
+
+    /// <summary>Checks the drafts and tells the Logic tab, if anything was typed since the last time.</summary>
+    public void CheckTyping()
+    {
+        if (!_typedSinceCheck)
+        {
+            return;
+        }
+
+        _typedSinceCheck = false;
         Recheck();
         foreach (DraftItemViewModel item in Items)
         {
             item.Refresh();
         }
 
-        ClearCommand.NotifyCanExecuteChanged();
+        List<Action> after = [.. _afterCheck.Values];
+        _afterCheck.Clear();
+        foreach (Action work in after)
+        {
+            work();
+        }
+
         Edited?.Invoke(this, EventArgs.Empty);
     }
 

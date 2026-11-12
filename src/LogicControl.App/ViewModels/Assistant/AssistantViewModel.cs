@@ -752,26 +752,63 @@ public enum ChatRole
 }
 
 /// <summary>A message in the chat. An assistant message grows as it streams.</summary>
-public sealed class ChatMessageViewModel(ChatRole role, string text) : ObservableObject
+public sealed class ChatMessageViewModel : ObservableObject
 {
-    private readonly StringBuilder _text = new(text);
-    private IReadOnlyList<ChatSegment>? _segments;
+    private readonly StringBuilder _text;
 
-    public ChatRole Role { get; } = role;
+    public ChatMessageViewModel(ChatRole role, string text)
+    {
+        Role = role;
+        _text = new StringBuilder(text);
+        Sync();
+    }
+
+    public ChatRole Role { get; }
 
     public bool IsUser => Role == ChatRole.User;
 
     public string Text => _text.ToString();
 
-    /// <summary>The text cut into prose, code and rungs - rungs are drawn as ladder under their text.</summary>
-    public IReadOnlyList<ChatSegment> Segments => _segments ??= ChatSegment.Parse(Text);
+    /// <summary>
+    /// The text cut into prose, code and rungs - rungs are drawn as ladder under their text. Kept
+    /// in step as the answer streams in: the segments that are already finished stay the same
+    /// objects, so the panel redraws only the one being written, not the whole answer per token.
+    /// </summary>
+    public ObservableCollection<ChatSegment> Segments { get; } = [];
 
     internal void Append(string piece)
     {
         _text.Append(piece);
-        _segments = null;
+        Sync();
         OnPropertyChanged(nameof(Text));
-        OnPropertyChanged(nameof(Segments));
+    }
+
+    private void Sync()
+    {
+        IReadOnlyList<ChatSegment> fresh = ChatSegment.Parse(_text.ToString());
+
+        int same = 0;
+        while (same < fresh.Count && same < Segments.Count && Segments[same].SameAs(fresh[same]))
+        {
+            same++;
+        }
+
+        while (Segments.Count > fresh.Count)
+        {
+            Segments.RemoveAt(Segments.Count - 1);
+        }
+
+        for (int i = same; i < fresh.Count; i++)
+        {
+            if (i < Segments.Count)
+            {
+                Segments[i] = fresh[i];
+            }
+            else
+            {
+                Segments.Add(fresh[i]);
+            }
+        }
     }
 }
 
@@ -876,6 +913,21 @@ public sealed record ChatSegment(ChatSegmentKind Kind, string Text)
 
     /// <summary>The left margin a list item is drawn at.</summary>
     public double Indent => Level * 16;
+
+    /// <summary>
+    /// True when <paramref name="other"/> would be drawn the same. Records compare their lists by
+    /// reference, and every parse makes new lists, so the parts that show are compared here.
+    /// </summary>
+    public bool SameAs(ChatSegment other) =>
+        other is not null
+        && Kind == other.Kind
+        && Level == other.Level
+        && string.Equals(Text, other.Text, StringComparison.Ordinal)
+        && string.Equals(Caption, other.Caption, StringComparison.Ordinal)
+        && string.Equals(Marker, other.Marker, StringComparison.Ordinal)
+        && Inlines.SequenceEqual(other.Inlines)
+        && Rows.Count == other.Rows.Count
+        && Rows.Zip(other.Rows).All(r => r.First.SequenceEqual(r.Second, StringComparer.Ordinal));
 
     public static IReadOnlyList<ChatSegment> Parse(string text)
     {

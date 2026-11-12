@@ -27,6 +27,39 @@ public class HistoryTests
     }
 
     [Fact]
+    public void TwoLongListsThatDifferAllThroughDiffWithoutAHugeTable()
+    {
+        // 3,000 x 3,000 would be a 36 MB table. Every third line differs; the rest are anchors.
+        string[] before = [.. Enumerable.Range(0, 3000).Select(i => i % 3 == 0 ? $"old {i}" : $"same {i}")];
+        string[] after = [.. Enumerable.Range(0, 3000).Select(i => i % 3 == 0 ? $"new {i}" : $"same {i}")];
+
+        long allocated = GC.GetAllocatedBytesForCurrentThread();
+        IReadOnlyList<LineStep> steps = LineDiff.Compute(before, after);
+        allocated = GC.GetAllocatedBytesForCurrentThread() - allocated;
+
+        Assert.True(allocated < 8_000_000, $"allocated {allocated} bytes");
+        Assert.Equal(2000, steps.Count(s => s.Change == LineChange.Same));
+        Assert.Equal(1000, steps.Count(s => s.Change == LineChange.Added));
+        Assert.Equal(1000, steps.Count(s => s.Change == LineChange.Removed));
+
+        // The steps rebuild both sides, in order.
+        Assert.Equal(before, steps.Where(s => s.Change != LineChange.Added).Select(s => before[s.Before]));
+        Assert.Equal(after, steps.Where(s => s.Change != LineChange.Removed).Select(s => after[s.After]));
+        Assert.Equal(Enumerable.Range(0, 3000), steps.Where(s => s.Before >= 0).Select(s => s.Before));
+        Assert.Equal(Enumerable.Range(0, 3000), steps.Where(s => s.After >= 0).Select(s => s.After));
+    }
+
+    [Fact]
+    public void TwoLongListsWithNothingInCommonAreRemovedThenAdded()
+    {
+        string[] before = [.. Enumerable.Range(0, 2000).Select(i => $"a{i % 7}")];
+        string[] after = [.. Enumerable.Range(0, 2000).Select(i => $"b{i % 5}")];
+        IReadOnlyList<LineStep> steps = LineDiff.Compute(before, after);
+        Assert.Equal(2000, steps.TakeWhile(s => s.Change == LineChange.Removed).Count());
+        Assert.Equal(2000, steps.Skip(2000).Count(s => s.Change == LineChange.Added));
+    }
+
+    [Fact]
     public void LineDiffOfIdenticalListsIsAllSame()
     {
         Assert.All(LineDiff.Compute(["a", "b"], ["a", "b"]), s => Assert.Equal(LineChange.Same, s.Change));

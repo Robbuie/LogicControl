@@ -5,6 +5,7 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Data;
 using System.Windows.Input;
+using System.Windows.Threading;
 using Microsoft.Win32;
 using LogicControl.App.Composition;
 using LogicControl.App.Diagnostics;
@@ -452,12 +453,41 @@ public partial class MainWindow : Window
                 view.GroupDescriptions.Add(new PropertyGroupDescription(nameof(DraftItemViewModel.Group)));
             }
 
+            vm.Develop.AfterTyping = AfterTyping;
             vm.Assistant.PropertyChanged += OnAssistantChanged;
             vm.PropertyChanged += OnMainChanged;
             vm.LineFocusRequested += OnLineFocusRequested;
             SizeNavigator(vm.ShowNavigator);
             SizeAssistant(vm.Assistant.IsOpen);
         }
+    }
+
+    private DispatcherTimer? _typingTimer;
+    private Action? _afterTyping;
+
+    /// <summary>
+    /// Holds the Develop tab's check-and-redraw until typing pauses for a quarter of a second, so
+    /// a key in a 2,000-rung routine is a key, not a recheck of every draft and a new Logic tab.
+    /// </summary>
+    private void AfterTyping(Action work)
+    {
+        _afterTyping = work;
+        DispatcherTimer timer = _typingTimer ??= NewTypingTimer();
+        timer.Stop();
+        timer.Start();
+    }
+
+    private DispatcherTimer NewTypingTimer()
+    {
+        var timer = new DispatcherTimer(DispatcherPriority.Background, Dispatcher) { Interval = TimeSpan.FromMilliseconds(250) };
+        timer.Tick += (_, _) =>
+        {
+            timer.Stop();
+            Action? run = _afterTyping;
+            _afterTyping = null;
+            run?.Invoke();
+        };
+        return timer;
     }
 
     // ------------------------------------------------------------------ controller organizer

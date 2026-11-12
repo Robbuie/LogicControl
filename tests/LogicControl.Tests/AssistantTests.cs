@@ -239,6 +239,39 @@ public class AssistantTests
     }
 
     [Fact]
+    public async Task OldToolResultsAreClearedOnceTheHistoryIsLong()
+    {
+        var api = new ScriptedApi(
+            ToolCall("toolu_1", "project_overview", "{}"), Answer("One."),
+            ToolCall("toolu_2", "project_overview", "{}"), Answer("Two."),
+            ToolCall("toolu_3", "project_overview", "{}"), Answer("Three."),
+            Answer("Four."));
+        using var client = new ClaudeClient("sk-ant-test", api);
+        var session = new ConversationSession(client, new LogicTools(new Host()), new AssistantOptions()) { ToolResultBudget = 100 };
+        var sink = new Recorder();
+
+        foreach (string question in new[] { "a", "b", "c", "d" })
+        {
+            await session.RunTurnAsync(question, null, sink);
+        }
+
+        // The last request: the first question's result cleared, the two before this one kept.
+        List<string?> results = api.Requests[^1]["messages"]!.AsArray()
+            .SelectMany(m => m!["content"]!.AsArray())
+            .Where(b => (string?)b!["type"] == "tool_result")
+            .Select(b => (string?)b!["content"])
+            .ToList();
+        Assert.Equal(3, results.Count);
+        Assert.Equal(ConversationSession.ClearedToolResult, results[0]);
+        Assert.Contains("Tasks:", results[1], StringComparison.Ordinal);
+        Assert.Contains("Tasks:", results[2], StringComparison.Ordinal);
+
+        // Under the budget nothing is touched, so the prompt cache holds.
+        Assert.DoesNotContain(api.Requests[3]["messages"]!.AsArray().SelectMany(m => m!["content"]!.AsArray()),
+            b => (string?)b!["content"] == ConversationSession.ClearedToolResult);
+    }
+
+    [Fact]
     public async Task ATurnRunsToolsAndSendsTheirResultsBack()
     {
         var api = new ScriptedApi(ToolCall("toolu_1", "project_overview", "{}"), Answer("It is Line 3."));
@@ -338,6 +371,33 @@ public class AssistantTests
         // What the user was looking at went with the question.
         string sent = (string)api.Requests[0]["messages"]![0]!["content"]![0]!["text"]!;
         Assert.Contains("Open project:", sent, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void AStreamedAnswerKeepsItsFinishedSegments()
+    {
+        var answer = new ChatMessageViewModel(ChatRole.Assistant, string.Empty);
+        int resets = 0;
+        answer.Segments.CollectionChanged += (_, e) => resets += e.Action == System.Collections.Specialized.NotifyCollectionChangedAction.Reset ? 1 : 0;
+
+        string text = "## Why M101 does not start\n\nThe **start** rung needs `Auto_Mode`:\n\n```\nXIC(Start)XIO(Stop)OTE(M101);\n```\n\n- one\n- two\n";
+        foreach (char c in text)
+        {
+            answer.Append(c.ToString());
+        }
+
+        ChatSegment heading = answer.Segments[0];
+        ChatSegment rung = Assert.Single(answer.Segments, s => s.IsRung);
+        answer.Append("\nMore after the list.");
+
+        // What was finished is the same object - the panel does not rebuild it - and the result is
+        // what parsing the whole answer at once gives.
+        Assert.Same(heading, answer.Segments[0]);
+        Assert.Same(rung, Assert.Single(answer.Segments, s => s.IsRung));
+        Assert.Equal(0, resets);
+        IReadOnlyList<ChatSegment> whole = ChatSegment.Parse(answer.Text);
+        Assert.Equal(whole.Count, answer.Segments.Count);
+        Assert.All(whole.Zip(answer.Segments), p => Assert.True(p.First.SameAs(p.Second)));
     }
 
     [Fact]
